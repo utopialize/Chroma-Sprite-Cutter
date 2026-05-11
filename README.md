@@ -1,39 +1,112 @@
 # Chroma Sprite Cutter
 
-Local browser tool to convert chroma-keyed PNG sprites into clean transparent
-PNGs. Built for game asset workflows where AI-generated sprites come on a flat
-green / blue / magenta background and need a clean alpha channel.
+Local browser tool for preparing 2D game spritesheets from chroma-keyed PNGs.
 
-Everything runs in the browser — no upload, no backend, no telemetry.
+The project is evolving from a simple background remover into a full local
+pipeline: import a PNG, clean the chroma background, rebuild a regular
+spritesheet, inspect the result, then export game-ready files.
 
-## Features
+Everything runs in the browser: no upload, no backend, no telemetry.
 
-- **Drag & drop** PNG import with auto-detected key color (samples the 4 corners
-  on load).
-- **Eyedropper** to pick the key color directly from the image.
-- **Chroma key on YCbCr distance** — discriminates hue without confusing
-  shadows or highlights on the screen.
-- **Real-time preview** via a Web Worker; the main thread stays responsive on
-  large sprites while dragging sliders.
-- **Preview backgrounds** — checker / white / black / gray / red / blue — drawn
-  into the canvas so you can spot leftover edge pixels at a glance.
-- **View modes** — `Original` / `Processed` / `Split` (original on the left,
-  processed on the right, with a center divider).
-- **Zoom** to 0.25× – 16×, with `Ctrl + wheel` anchored on the cursor, click /
-  middle-drag to pan, `Fit` to recenter.
-- **Save / load presets** as JSON files (`{ version, settings, createdAt }`).
-- **Export** the processed image as a true transparent PNG at native
-  resolution, named `<source>_transparent.png`.
+## Current Workflow
+
+The app is organized as a guided 4-step workflow.
+
+### 1. Import
+
+- Drag and drop a PNG or choose one from disk.
+- Preview the untouched source image.
+- Inspect file name, dimensions, size, format, and detected key color.
+- Continue is disabled until a valid image is loaded.
+
+### 2. Clean Background
+
+- Auto-detect the chroma key color from image corners.
+- Pick a key color with the eyedropper.
+- Tune tolerance, softness, spill suppression, edge cleanup, and detail
+  preservation.
+- Preview with checker, white, black, gray, red, or blue backgrounds.
+- Use view modes: Original, Processed, Split, and Alpha mask.
+- Zoom, pan, fit, and reset the preview.
+- Save/load mask-only presets.
+
+### 3. Build Sprite Sheet
+
+- Enable the Sprite Sheet Builder.
+- Extract frames from a source grid.
+- Configure source columns, rows, margins, gaps, and alpha threshold.
+- Configure output columns, rows, frame width, frame height, padding, fit mode,
+  and anchor.
+- Apply common templates such as `5 x 2 / 128`, `8 x 1 / 64`, `4 x 4 / 256`,
+  and `RPG walk`.
+- Preview the result as Source overlay, Extracted frames, or Final sheet.
+- Display source grid, detected bounds, output grid, and frame numbering.
+- Show basic warnings for invalid grids, frame count mismatch, empty frames,
+  clipping risk, and padding issues.
+
+### 4. Export
+
+- Export the processed transparent PNG.
+- Export the rebuilt spritesheet PNG when sheet building is enabled.
+- Export JSON metadata for the final image or spritesheet.
+- Export individual frames from the rebuilt sheet.
+- Save/load a project preset containing both chroma key and spritesheet
+  settings.
+
+## Available Features
+
+- PNG-only local import.
+- YCbCr chroma-key algorithm designed to preserve shadows/highlights better than
+  raw RGB distance.
+- Web Worker processing for responsive real-time chroma preview.
+- Canvas-based preview with pan and cursor-anchored zoom.
+- Alpha mask inspection mode for mask debugging.
+- Deterministic source-grid spritesheet reconstruction.
+- Fit modes: contain, cover, original size.
+- Anchors: center, bottom-center, top-center.
+- PNG export with strict output dimensions.
+- JSON metadata export.
+- Individual frame export.
+- Mask-only presets and full project presets.
+- Unit tests for chroma key, image export helpers, presets, spritesheet
+  extraction, templates, and validation.
+
+## Roadmap
+
+The broader roadmap is tracked in
+`memory-bank/CDC_ROADMAP_Chroma_Sprite_Cutter.md`.
+
+Short-term priorities:
+
+- Improve overlays and warnings.
+- Add richer export formats, including ZIP packaging.
+- Add an animation preview player.
+- Add frame names, ranges, and animation metadata.
+- Improve project presets and templates.
+
+Medium-term priorities:
+
+- Manual frame corrections: move, crop, resize, duplicate, delete, reorder.
+- Auto-detection by visible connected components.
+- Custom pivots and ground-line inspection.
+- Batch processing and reusable templates.
+
+Long-term priorities:
+
+- Engine-oriented metadata exports.
+- Texture bleeding prevention and edge extrusion.
+- Animation organization for complex sheets.
+- Production-grade project files.
 
 ## Stack
 
-- Vite 8 + React 18 + TypeScript 5 (strict, `verbatimModuleSyntax`).
-- Web Workers via Vite's `?worker` import.
+- Vite 8 + React 18 + TypeScript 5.
+- Web Workers through Vite `?worker` imports.
 - Vitest + happy-dom for unit tests.
-- No CSS framework — inline styles fed by a small theme module
-  ([src/theme.ts](src/theme.ts)).
+- Inline styles backed by shared theme tokens in [src/theme.ts](src/theme.ts).
+- No backend and no CSS framework.
 
-## Getting started
+## Getting Started
 
 ```sh
 npm install
@@ -42,92 +115,130 @@ npm run dev
 
 Other scripts:
 
-| Script               | Action                                        |
-| -------------------- | --------------------------------------------- |
-| `npm run dev`        | Vite dev server                               |
-| `npm run build`      | `tsc -b` typecheck + production bundle        |
-| `npm run preview`    | Serve the production build locally            |
-| `npm run typecheck`  | Strict type check only                        |
-| `npm run test`       | Vitest in watch mode                          |
-| `npm run test:run`   | Vitest one-shot                               |
+| Script | Action |
+| --- | --- |
+| `npm run dev` | Vite dev server |
+| `npm run build` | Typecheck and production bundle |
+| `npm run preview` | Serve the production build locally |
+| `npm run typecheck` | Strict type check only |
+| `npm run test` | Vitest watch mode |
+| `npm run test:run` | Vitest one-shot |
 
-## Keyboard shortcuts
+## Keyboard Shortcuts
 
-| Key              | Action                          |
-| ---------------- | ------------------------------- |
-| `O` / `P` / `S`  | Original / Processed / Split    |
-| `I`              | Toggle eyedropper               |
-| `Esc`            | Cancel eyedropper               |
-| `+` / `-`        | Zoom in / out                   |
-| `0`              | Fit                             |
-| `1`              | 100%                            |
-| `Ctrl` + wheel   | Zoom centered on cursor         |
-| `⌘` + wheel      | Same on macOS                   |
+| Key | Action |
+| --- | --- |
+| `O` | Original view in Clean Background |
+| `P` | Processed view in Clean Background |
+| `S` | Split view in Clean Background |
+| `A` | Alpha mask view in Clean Background |
+| `I` | Toggle eyedropper in Clean Background |
+| `Esc` | Cancel eyedropper |
+| `+` / `-` | Zoom in / out |
+| `0` | Fit |
+| `1` | 100% |
+| `Ctrl` + wheel | Zoom centered on cursor |
+| `Cmd` + wheel | Same on macOS |
 
-Shortcuts are ignored while focus is on an input / textarea / select.
+Shortcuts are ignored while focus is inside an input, textarea, or select.
 
-## Algorithm (short version)
+## Chroma Key Algorithm
 
 For each pixel:
 
-1. Convert RGB → CbCr (BT.601). Compute squared chroma distance to the key
-   color's CbCr.
-2. If distance ≤ `tolerance` → alpha = 0.
-3. If distance ∈ `(tolerance, tolerance + softness × 128 / 100)` → alpha is a
-   linear ramp raised to a gamma derived from `preserveDetails` (0 = softer
-   transitions, 100 = sharper edges).
-4. **Spill suppression** on semi-transparent pixels — the dominant channel of
-   the key color is clamped to `max(other two)` + reduced delta. Auto-targets
-   green, blue, or red based on the key color.
-5. **Edge cleanup** zeroes alpha values below a threshold and applies a 3×3
-   morphological erosion proportional to the setting.
+1. Convert RGB to CbCr using BT.601 coefficients.
+2. Compute chroma distance to the selected key color.
+3. Clear pixels inside the tolerance radius.
+4. Apply a softened alpha ramp according to softness and preserve-details.
+5. Suppress color spill on semi-transparent pixels.
+6. Optionally apply edge cleanup with thresholding and local erosion.
 
-Full implementation in [src/lib/chromaKey.ts](src/lib/chromaKey.ts), running
-inside [src/lib/chromaKey.worker.ts](src/lib/chromaKey.worker.ts).
+Implementation:
 
-## Project layout
+- [src/lib/chromaKey.ts](src/lib/chromaKey.ts)
+- [src/lib/chromaKey.worker.ts](src/lib/chromaKey.worker.ts)
 
-```
+## Sprite Sheet Builder
+
+The current MVP uses source-grid extraction:
+
+1. Divide the processed transparent image into source grid cells.
+2. Detect visible content bounds in each cell from alpha.
+3. Recompose each detected sprite into a strict output frame.
+4. Apply fit mode, anchor, and padding.
+5. Produce a final transparent PNG and metadata.
+
+Implementation:
+
+- [src/lib/spriteSheet.ts](src/lib/spriteSheet.ts)
+- [src/lib/spriteSheetValidation.ts](src/lib/spriteSheetValidation.ts)
+- [src/lib/spriteSheetTemplates.ts](src/lib/spriteSheetTemplates.ts)
+- [src/components/SpriteSheetPanel.tsx](src/components/SpriteSheetPanel.tsx)
+
+## Export Metadata
+
+Spritesheet metadata currently includes:
+
+- source filename;
+- final PNG dimensions;
+- output grid columns/rows;
+- frame width and height;
+- fit mode and anchor;
+- one entry per frame with index, generated name, destination rectangle, source
+  cell, detected content bounds, draw rectangle, empty flag, and pivot.
+
+This is a generic JSON format intended as a base for later Aseprite, Phaser,
+Godot, Unity, or atlas-specific exports.
+
+## Presets
+
+Two preset formats exist:
+
+- **Mask preset**, version 1: chroma key settings only.
+- **Project preset**, version 2: chroma key settings plus spritesheet settings.
+
+Mask-only presets remain supported from the Clean Background step. Full project
+presets are available from the Export step.
+
+## Project Layout
+
+```text
 src/
   components/
-    BackgroundPreviewSelector.tsx   Preview background pills
-    ControlsPanel.tsx               Key color, sliders, preset save/load
-    ExportPanel.tsx                 Transparent PNG export
-    ImportPanel.tsx                 Drag & drop + file picker
-    PreviewCanvas.tsx               Canvas, worker, pan / zoom / eyedropper
+    BackgroundPreviewSelector.tsx
+    ControlsPanel.tsx
+    ExportPanel.tsx
+    ImportPanel.tsx
+    PreviewCanvas.tsx
+    ProjectPresetPanel.tsx
+    SpriteSheetPanel.tsx
   lib/
-    chromaKey.ts                    YCbCr-based applyChromaKey + samplePixel
-    chromaKey.worker.ts             Worker wrapper around applyChromaKey
-    colorUtils.ts                   hex ⇄ RGB, autoDetectKeyColor
-    imageIO.ts                      Export transparent PNG + filename helper
-    presets.ts                      Serialize / parse / download mask presets
-    zoom.ts                         Zoom levels + step helpers
-  types/image.ts                    Shared types (RGB, LoadedImage, etc.)
-  App.tsx                           Layout, state, keyboard shortcuts
-  main.tsx                          React entry
-  theme.ts                          Color / spacing / radii tokens
+    chromaKey.ts
+    chromaKey.worker.ts
+    colorUtils.ts
+    imageIO.ts
+    presets.ts
+    spriteSheet.ts
+    spriteSheetTemplates.ts
+    spriteSheetValidation.ts
+    zoom.ts
+  types/
+    image.ts
+    spriteSheet.ts
+  App.tsx
+  main.tsx
+  theme.ts
 ```
 
-## Preset file format
+## Current Limitations
 
-```json
-{
-  "version": 1,
-  "settings": {
-    "keyColor": { "r": 0, "g": 255, "b": 0 },
-    "tolerance": 30,
-    "softness": 25,
-    "spillSuppression": 50,
-    "edgeCleanup": 0,
-    "preserveDetails": 50
-  },
-  "createdAt": "2026-05-11T12:34:56.000Z"
-}
-```
-
-`parsePreset` validates every field's type before applying — malformed files
-raise a visible error instead of corrupting state.
+- Auto-detection of irregular sprites is not implemented yet.
+- Manual frame correction is not implemented yet.
+- Individual frame export currently downloads separate PNGs rather than a ZIP.
+- Animation preview and animation ranges are planned but not implemented yet.
+- Advanced engine-specific metadata formats are planned but not implemented yet.
 
 ## License
 
-No license set yet — treat as personal-use code unless you add one.
+No license is set yet. Treat this as personal-use code unless a license is
+added.
