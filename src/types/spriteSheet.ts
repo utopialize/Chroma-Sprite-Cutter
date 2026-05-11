@@ -45,3 +45,11 @@ export interface SpriteSheetBuildResult {
   width: number;
   height: number;
 }
+
+export type SpriteSheetDiagnosticSeverity = 'warning' | 'error';
+
+export interface SpriteSheetDiagnostic {
+  severity: SpriteSheetDiagnosticSeverity;
+  code: string;
+  message: string;
+}

@@ -5,9 +5,11 @@ import { ControlsPanel } from './components/ControlsPanel';
 import { ExportPanel } from './components/ExportPanel';
 import { ImportPanel } from './components/ImportPanel';
 import { PreviewCanvas } from './components/PreviewCanvas';
+import { ProjectPresetPanel } from './components/ProjectPresetPanel';
 import { SpriteSheetPanel } from './components/SpriteSheetPanel';
 import { autoDetectKeyColor } from './lib/colorUtils';
 import { DEFAULT_SPRITESHEET_SETTINGS } from './lib/spriteSheet';
+import { validateSpriteSheetSettings } from './lib/spriteSheetValidation';
 import { formatZoom, stepZoom } from './lib/zoom';
 import type {
   ChromaKeySettings,
@@ -18,6 +20,7 @@ import type {
   ViewMode,
   Zoom,
 } from './types/image';
+import type { SpriteSheetDiagnostic } from './types/spriteSheet';
 import { colors, fontFamily, fontSize, radii, spacing } from './theme';
 
 type WorkflowStep = 'import' | 'clean' | 'build' | 'export';
@@ -264,6 +267,24 @@ const styles: Record<string, CSSProperties> = {
     fontVariantNumeric: 'tabular-nums',
     textAlign: 'right',
   },
+  diagnosticList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: spacing.sm,
+  },
+  diagnostic: {
+    border: `1px solid ${colors.borderInput}`,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    color: colors.textSecondary,
+    backgroundColor: colors.bgInput,
+    fontSize: fontSize.xs,
+    lineHeight: 1.35,
+  },
+  diagnosticError: {
+    borderColor: colors.danger,
+    color: colors.danger,
+  },
   actionRow: {
     display: 'flex',
     gap: spacing.md,
@@ -450,6 +471,7 @@ export default function App() {
   const outputFrames = spriteSheetSettings.enabled
     ? spriteSheetSettings.outputColumns * spriteSheetSettings.outputRows
     : 1;
+  const diagnostics = validateSpriteSheetSettings(image, spriteSheetSettings);
 
   const goToStep = (step: WorkflowStep) => {
     if (step !== 'import' && !canLeaveImport) return;
@@ -661,6 +683,7 @@ export default function App() {
               outputWidth={outputWidth}
               outputHeight={outputHeight}
               outputFrames={outputFrames}
+              diagnostics={diagnostics}
               mode="build"
             />
           }
@@ -719,6 +742,7 @@ export default function App() {
               outputWidth={outputWidth}
               outputHeight={outputHeight}
               outputFrames={outputFrames}
+              diagnostics={diagnostics}
               mode="export"
             />
           }
@@ -746,7 +770,16 @@ export default function App() {
                 outputWidth={outputWidth}
                 outputHeight={outputHeight}
                 outputFrames={outputFrames}
+                diagnostics={diagnostics}
                 mode="summary"
+              />
+              <ProjectPresetPanel
+                chromaKey={settings}
+                spriteSheet={spriteSheetSettings}
+                onLoad={(preset) => {
+                  setSettings(preset.chromaKey);
+                  setSpriteSheetSettings(preset.spriteSheet);
+                }}
               />
               <ExportPanel
                 image={image}
@@ -873,6 +906,7 @@ interface InfoPanelProps {
   outputWidth: number;
   outputHeight: number;
   outputFrames: number;
+  diagnostics?: SpriteSheetDiagnostic[];
   mode: 'import' | 'clean' | 'build' | 'export' | 'summary';
 }
 
@@ -882,6 +916,7 @@ function InfoPanel({
   outputWidth,
   outputHeight,
   outputFrames,
+  diagnostics = [],
   mode,
 }: InfoPanelProps) {
   const title =
@@ -924,6 +959,38 @@ function InfoPanel({
           />
           <InfoLine label="Format" value="PNG transparent" />
         </div>
+      )}
+      {(mode === 'build' || mode === 'export' || mode === 'summary') && (
+        <DiagnosticList diagnostics={diagnostics} />
+      )}
+    </div>
+  );
+}
+
+function DiagnosticList({
+  diagnostics,
+}: {
+  diagnostics: SpriteSheetDiagnostic[];
+}) {
+  return (
+    <div style={styles.diagnosticList}>
+      <span style={styles.sectionTitle}>Warnings</span>
+      {diagnostics.length === 0 ? (
+        <div style={styles.diagnostic}>No sheet warnings detected.</div>
+      ) : (
+        diagnostics.map((diagnostic) => (
+          <div
+            key={diagnostic.code}
+            style={{
+              ...styles.diagnostic,
+              ...(diagnostic.severity === 'error'
+                ? styles.diagnosticError
+                : {}),
+            }}
+          >
+            {diagnostic.message}
+          </div>
+        ))
       )}
     </div>
   );
