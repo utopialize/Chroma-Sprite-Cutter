@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
+import { AnimationPreviewPanel } from './components/AnimationPreviewPanel';
 import { BackgroundPreviewSelector } from './components/BackgroundPreviewSelector';
 import { ControlsPanel } from './components/ControlsPanel';
 import { ExportPanel } from './components/ExportPanel';
@@ -682,15 +683,22 @@ export default function App() {
       {activeStep === 'build' && (
         <Workspace
           left={
-            <InfoPanel
-              image={image}
-              settings={settings}
-              outputWidth={outputWidth}
-              outputHeight={outputHeight}
-              outputFrames={outputFrames}
-              diagnostics={diagnostics}
-              mode="build"
-            />
+            <>
+              <InfoPanel
+                image={image}
+                settings={settings}
+                outputWidth={outputWidth}
+                outputHeight={outputHeight}
+                outputFrames={outputFrames}
+                diagnostics={diagnostics}
+                mode="build"
+              />
+              <AnimationPreviewPanel
+                image={image}
+                settings={settings}
+                spriteSheetSettings={spriteSheetSettings}
+              />
+            </>
           }
           center={
             <>
