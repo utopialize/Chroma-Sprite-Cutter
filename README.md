@@ -39,6 +39,8 @@ The app is organized as a guided 4-step workflow.
   and anchor.
 - Apply common templates such as `5 x 2 / 128`, `8 x 1 / 64`, `4 x 4 / 256`,
   and `RPG walk`.
+- Select which source frames are included in the rebuilt sheet, with excluded
+  frames removed and the remaining frames compacted in order.
 - Preview the result as Source overlay, Extracted frames, or Final sheet.
 - Display source grid, detected bounds, output grid, and frame numbering.
 - Show basic warnings for invalid grids, frame count mismatch, empty frames,
@@ -62,6 +64,7 @@ The app is organized as a guided 4-step workflow.
 - Canvas-based preview with pan and cursor-anchored zoom.
 - Alpha mask inspection mode for mask debugging.
 - Deterministic source-grid spritesheet reconstruction.
+- Source frame inclusion/exclusion before sheet reconstruction.
 - Fit modes: contain, cover, original size.
 - Anchors: center, bottom-center, top-center.
 - PNG export with strict output dimensions.
@@ -164,9 +167,10 @@ The current MVP uses source-grid extraction:
 
 1. Divide the processed transparent image into source grid cells.
 2. Detect visible content bounds in each cell from alpha.
-3. Recompose each detected sprite into a strict output frame.
-4. Apply fit mode, anchor, and padding.
-5. Produce a final transparent PNG and metadata.
+3. Apply the source frame inclusion/exclusion selection.
+4. Recompose kept sprites into strict output frames, compacted in order.
+5. Apply fit mode, anchor, and padding.
+6. Produce a final transparent PNG and metadata.
 
 Implementation:
 

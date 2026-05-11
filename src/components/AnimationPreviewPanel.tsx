@@ -105,7 +105,7 @@ export function AnimationPreviewPanel({
     }
   }, [image, settings, spriteSheetSettings]);
 
-  const frameCount = build?.result.frames.length ?? 0;
+  const frameCount = build?.frames.length ?? 0;
   const disabled = !build || frameCount === 0;
 
   useEffect(() => {
@@ -208,7 +208,11 @@ function buildAnimationSheet(
   image: LoadedImage,
   settings: ChromaKeySettings,
   spriteSheetSettings: SpriteSheetSettings,
-): { result: SpriteSheetBuildResult; sheetCanvas: HTMLCanvasElement } {
+): {
+  result: SpriteSheetBuildResult;
+  frames: SpriteSheetBuildResult['frames'];
+  sheetCanvas: HTMLCanvasElement;
+} {
   const sourceCanvas = document.createElement('canvas');
   sourceCanvas.width = image.width;
   sourceCanvas.height = image.height;
@@ -226,15 +230,23 @@ function buildAnimationSheet(
   if (!sheetCtx) throw new Error('Cannot obtain 2D context');
   sheetCtx.putImageData(result.imageData, 0, 0);
 
-  return { result, sheetCanvas };
+  return {
+    result,
+    frames: result.frames.filter((frame) => frame.sourceIndex !== null),
+    sheetCanvas,
+  };
 }
 
 function drawFrame(
   canvas: HTMLCanvasElement,
-  build: { result: SpriteSheetBuildResult; sheetCanvas: HTMLCanvasElement },
+  build: {
+    result: SpriteSheetBuildResult;
+    frames: SpriteSheetBuildResult['frames'];
+    sheetCanvas: HTMLCanvasElement;
+  },
   index: number,
 ): void {
-  const frame = build.result.frames[index];
+  const frame = build.frames[index];
   if (!frame) return;
   canvas.width = frame.destinationCell.width;
   canvas.height = frame.destinationCell.height;

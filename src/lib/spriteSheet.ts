@@ -3,6 +3,7 @@ import type {
   SpriteSheetBuildResult,
   SpriteSheetFrame,
   SpriteSheetSettings,
+  SpriteSheetSourceFrame,
 } from '../types/spriteSheet';
 
 export const DEFAULT_SPRITESHEET_SETTINGS: SpriteSheetSettings = {
@@ -22,13 +23,15 @@ export const DEFAULT_SPRITESHEET_SETTINGS: SpriteSheetSettings = {
   anchor: 'bottom-center',
   padding: 0,
   alphaThreshold: 8,
+  excludedSourceFrameIndices: [],
 };
 
 export function buildSpriteSheet(
   source: ImageData,
   settings: SpriteSheetSettings,
 ): SpriteSheetBuildResult {
-  const frames = buildFramePlan(source, settings);
+  const sourceFrames = buildSourceFramePlan(source, settings);
+  const frames = buildFramePlanFromSourceFrames(sourceFrames, settings);
   const width = getOutputWidth(settings);
   const height = getOutputHeight(settings);
 
@@ -73,6 +76,7 @@ export function buildSpriteSheet(
   return {
     imageData: outputCtx.getImageData(0, 0, width, height),
     frames,
+    sourceFrames,
     width,
     height,
   };
@@ -82,17 +86,48 @@ export function buildFramePlan(
   source: ImageData,
   settings: SpriteSheetSettings,
 ): SpriteSheetFrame[] {
+  return buildFramePlanFromSourceFrames(
+    buildSourceFramePlan(source, settings),
+    settings,
+  );
+}
+
+export function buildSourceFramePlan(
+  source: ImageData,
+  settings: SpriteSheetSettings,
+): SpriteSheetSourceFrame[] {
   const sourceRects = getSourceGridRects(source.width, source.height, settings);
+  const excluded = new Set(settings.excludedSourceFrameIndices);
+  return sourceRects.map((sourceRect, sourceIndex) => {
+    const contentRect = detectContentRect(
+      source,
+      sourceRect,
+      settings.alphaThreshold,
+    );
+    return {
+      sourceIndex,
+      sourceRect,
+      contentRect,
+      included: !excluded.has(sourceIndex),
+      empty: !contentRect,
+    };
+  });
+}
+
+function buildFramePlanFromSourceFrames(
+  sourceFrames: SpriteSheetSourceFrame[],
+  settings: SpriteSheetSettings,
+): SpriteSheetFrame[] {
   const outputCount = settings.outputColumns * settings.outputRows;
+  const includedFrames = sourceFrames.filter((frame) => frame.included);
   const frames: SpriteSheetFrame[] = [];
 
   for (let index = 0; index < outputCount; index++) {
+    const sourceFrame = includedFrames[index];
     const sourceRect =
-      sourceRects[index] ??
+      sourceFrame?.sourceRect ??
       ({ x: 0, y: 0, width: 0, height: 0 } satisfies Rect);
-    const contentRect = sourceRects[index]
-      ? detectContentRect(source, sourceRect, settings.alphaThreshold)
-      : null;
+    const contentRect = sourceFrame?.contentRect ?? null;
     const destinationCell = getDestinationCell(index, settings);
     const drawRect = contentRect
       ? getDrawRect(contentRect, destinationCell, settings)
@@ -100,6 +135,7 @@ export function buildFramePlan(
 
     frames.push({
       index,
+      sourceIndex: sourceFrame?.sourceIndex ?? null,
       sourceRect,
       contentRect,
       destinationCell,
