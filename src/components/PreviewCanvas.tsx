@@ -233,6 +233,11 @@ export function PreviewCanvas({
       return;
     }
 
+    if (viewMode === 'alpha') {
+      drawAlphaMask(ctx, processedImageData);
+      return;
+    }
+
     if (showSheetOutput) {
       const off = ensureOffscreen(offscreenRef, width, height);
       const offCtx = off.getContext('2d');
@@ -425,6 +430,21 @@ export function PreviewCanvas({
       />
     </div>
   );
+}
+
+function drawAlphaMask(
+  ctx: CanvasRenderingContext2D,
+  imageData: ImageData,
+): void {
+  const mask = new ImageData(imageData.width, imageData.height);
+  for (let i = 0; i < imageData.data.length; i += 4) {
+    const alpha = imageData.data[i + 3];
+    mask.data[i] = alpha;
+    mask.data[i + 1] = alpha;
+    mask.data[i + 2] = alpha;
+    mask.data[i + 3] = 255;
+  }
+  ctx.putImageData(mask, 0, 0);
 }
 
 function drawSourceOverlay(

@@ -8,7 +8,7 @@ export type PreviewBackground =
 
 export type Zoom = 'fit' | number;
 
-export type ViewMode = 'processed' | 'original' | 'split';
+export type ViewMode = 'processed' | 'original' | 'split' | 'alpha';
 
 export type SpriteSheetPreviewMode =
   | 'sheet-source'

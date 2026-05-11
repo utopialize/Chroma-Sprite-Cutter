@@ -1,4 +1,5 @@
 import type { ChangeEvent, CSSProperties, ReactNode } from 'react';
+import { SPRITESHEET_TEMPLATES } from '../lib/spriteSheetTemplates';
 import type {
   SpriteSheetAnchor,
   SpriteSheetFitMode,
@@ -94,6 +95,33 @@ const styles: Record<string, CSSProperties> = {
     opacity: 0.5,
     cursor: 'not-allowed',
   },
+  templateGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: spacing.md,
+  },
+  templateButton: {
+    minHeight: 54,
+    padding: spacing.md,
+    border: `1px solid ${colors.borderInput}`,
+    borderRadius: radii.md,
+    backgroundColor: colors.bgInput,
+    color: colors.textSecondary,
+    cursor: 'pointer',
+    textAlign: 'left',
+  },
+  templateTitle: {
+    display: 'block',
+    fontSize: fontSize.xs,
+    fontWeight: 700,
+  },
+  templateDescription: {
+    display: 'block',
+    marginTop: 3,
+    color: colors.textFaint,
+    fontSize: fontSize.xxs,
+    lineHeight: 1.35,
+  },
 };
 
 export function SpriteSheetPanel({
@@ -129,6 +157,35 @@ export function SpriteSheetPanel({
           style={styles.checkbox}
         />
       </label>
+
+      <div style={contentStyle}>
+        <span style={styles.section}>Templates</span>
+        <div style={styles.templateGrid}>
+          {SPRITESHEET_TEMPLATES.map((template) => (
+            <button
+              key={template.id}
+              type="button"
+              disabled={!settings.enabled}
+              style={{
+                ...styles.templateButton,
+                ...(!settings.enabled ? styles.modeButtonDisabled : {}),
+              }}
+              title={template.description}
+              onClick={() =>
+                onChange({
+                  ...settings,
+                  ...template.settings,
+                })
+              }
+            >
+              <span style={styles.templateTitle}>{template.label}</span>
+              <span style={styles.templateDescription}>
+                {template.description}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div style={contentStyle}>
         <span style={styles.section}>Extraction mode</span>

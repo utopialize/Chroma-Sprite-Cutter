@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { parsePreset, serializePreset } from './presets';
+import {
+  parsePreset,
+  parseProjectPreset,
+  serializePreset,
+  serializeProjectPreset,
+} from './presets';
+import { DEFAULT_SPRITESHEET_SETTINGS } from './spriteSheet';
 import type { ChromaKeySettings } from '../types/image';
 
 const SETTINGS: ChromaKeySettings = {
@@ -59,5 +65,24 @@ describe('serializePreset / parsePreset', () => {
       },
     };
     expect(() => parsePreset(JSON.stringify(broken))).toThrow();
+  });
+});
+
+describe('serializeProjectPreset / parseProjectPreset', () => {
+  it('round-trips chroma and sprite sheet settings', () => {
+    const json = serializeProjectPreset(SETTINGS, {
+      ...DEFAULT_SPRITESHEET_SETTINGS,
+      enabled: true,
+      outputColumns: 8,
+    });
+    const parsed = parseProjectPreset(json);
+    expect(parsed.version).toBe(2);
+    expect(parsed.chromaKey).toEqual(SETTINGS);
+    expect(parsed.spriteSheet.outputColumns).toBe(8);
+  });
+
+  it('does not accept mask-only presets as project presets', () => {
+    const json = serializePreset(SETTINGS);
+    expect(() => parseProjectPreset(json)).toThrow(/mask-only/);
   });
 });

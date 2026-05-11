@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
+import { AnimationPreviewPanel } from './components/AnimationPreviewPanel';
 import { BackgroundPreviewSelector } from './components/BackgroundPreviewSelector';
 import { ControlsPanel } from './components/ControlsPanel';
 import { ExportPanel } from './components/ExportPanel';
 import { ImportPanel } from './components/ImportPanel';
 import { PreviewCanvas } from './components/PreviewCanvas';
+import { ProjectPresetPanel } from './components/ProjectPresetPanel';
 import { SpriteSheetPanel } from './components/SpriteSheetPanel';
 import { autoDetectKeyColor } from './lib/colorUtils';
 import { DEFAULT_SPRITESHEET_SETTINGS } from './lib/spriteSheet';
+import { validateSpriteSheetSettings } from './lib/spriteSheetValidation';
 import { formatZoom, stepZoom } from './lib/zoom';
 import type {
   ChromaKeySettings,
@@ -18,6 +21,7 @@ import type {
   ViewMode,
   Zoom,
 } from './types/image';
+import type { SpriteSheetDiagnostic } from './types/spriteSheet';
 import { colors, fontFamily, fontSize, radii, spacing } from './theme';
 
 type WorkflowStep = 'import' | 'clean' | 'build' | 'export';
@@ -48,6 +52,7 @@ const CLEAN_VIEW_MODES: { value: ViewMode; label: string; hotkey: string }[] = [
   { value: 'original', label: 'Original', hotkey: 'O' },
   { value: 'processed', label: 'Processed', hotkey: 'P' },
   { value: 'split', label: 'Split', hotkey: 'S' },
+  { value: 'alpha', label: 'Alpha mask', hotkey: 'A' },
 ];
 
 const SHEET_VIEW_MODES: { value: SpriteSheetPreviewMode; label: string }[] = [
@@ -264,6 +269,24 @@ const styles: Record<string, CSSProperties> = {
     fontVariantNumeric: 'tabular-nums',
     textAlign: 'right',
   },
+  diagnosticList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: spacing.sm,
+  },
+  diagnostic: {
+    border: `1px solid ${colors.borderInput}`,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    color: colors.textSecondary,
+    backgroundColor: colors.bgInput,
+    fontSize: fontSize.xs,
+    lineHeight: 1.35,
+  },
+  diagnosticError: {
+    borderColor: colors.danger,
+    color: colors.danger,
+  },
   actionRow: {
     display: 'flex',
     gap: spacing.md,
@@ -419,6 +442,10 @@ export default function App() {
         case 'S':
           if (activeStep === 'clean') setCleanViewMode('split');
           break;
+        case 'a':
+        case 'A':
+          if (activeStep === 'clean') setCleanViewMode('alpha');
+          break;
         case 'Escape':
           if (eyedropperActive) {
             event.preventDefault();
@@ -450,6 +477,7 @@ export default function App() {
   const outputFrames = spriteSheetSettings.enabled
     ? spriteSheetSettings.outputColumns * spriteSheetSettings.outputRows
     : 1;
+  const diagnostics = validateSpriteSheetSettings(image, spriteSheetSettings);
 
   const goToStep = (step: WorkflowStep) => {
     if (step !== 'import' && !canLeaveImport) return;
@@ -655,14 +683,22 @@ export default function App() {
       {activeStep === 'build' && (
         <Workspace
           left={
-            <InfoPanel
-              image={image}
-              settings={settings}
-              outputWidth={outputWidth}
-              outputHeight={outputHeight}
-              outputFrames={outputFrames}
-              mode="build"
-            />
+            <>
+              <InfoPanel
+                image={image}
+                settings={settings}
+                outputWidth={outputWidth}
+                outputHeight={outputHeight}
+                outputFrames={outputFrames}
+                diagnostics={diagnostics}
+                mode="build"
+              />
+              <AnimationPreviewPanel
+                image={image}
+                settings={settings}
+                spriteSheetSettings={spriteSheetSettings}
+              />
+            </>
           }
           center={
             <>
@@ -719,6 +755,7 @@ export default function App() {
               outputWidth={outputWidth}
               outputHeight={outputHeight}
               outputFrames={outputFrames}
+              diagnostics={diagnostics}
               mode="export"
             />
           }
@@ -746,7 +783,16 @@ export default function App() {
                 outputWidth={outputWidth}
                 outputHeight={outputHeight}
                 outputFrames={outputFrames}
+                diagnostics={diagnostics}
                 mode="summary"
+              />
+              <ProjectPresetPanel
+                chromaKey={settings}
+                spriteSheet={spriteSheetSettings}
+                onLoad={(preset) => {
+                  setSettings(preset.chromaKey);
+                  setSpriteSheetSettings(preset.spriteSheet);
+                }}
               />
               <ExportPanel
                 image={image}
@@ -873,6 +919,7 @@ interface InfoPanelProps {
   outputWidth: number;
   outputHeight: number;
   outputFrames: number;
+  diagnostics?: SpriteSheetDiagnostic[];
   mode: 'import' | 'clean' | 'build' | 'export' | 'summary';
 }
 
@@ -882,6 +929,7 @@ function InfoPanel({
   outputWidth,
   outputHeight,
   outputFrames,
+  diagnostics = [],
   mode,
 }: InfoPanelProps) {
   const title =
@@ -924,6 +972,38 @@ function InfoPanel({
           />
           <InfoLine label="Format" value="PNG transparent" />
         </div>
+      )}
+      {(mode === 'build' || mode === 'export' || mode === 'summary') && (
+        <DiagnosticList diagnostics={diagnostics} />
+      )}
+    </div>
+  );
+}
+
+function DiagnosticList({
+  diagnostics,
+}: {
+  diagnostics: SpriteSheetDiagnostic[];
+}) {
+  return (
+    <div style={styles.diagnosticList}>
+      <span style={styles.sectionTitle}>Warnings</span>
+      {diagnostics.length === 0 ? (
+        <div style={styles.diagnostic}>No sheet warnings detected.</div>
+      ) : (
+        diagnostics.map((diagnostic) => (
+          <div
+            key={diagnostic.code}
+            style={{
+              ...styles.diagnostic,
+              ...(diagnostic.severity === 'error'
+                ? styles.diagnosticError
+                : {}),
+            }}
+          >
+            {diagnostic.message}
+          </div>
+        ))
       )}
     </div>
   );

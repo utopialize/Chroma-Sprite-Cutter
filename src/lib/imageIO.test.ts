@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildExportName, buildSpriteSheetExportName } from './imageIO';
+import {
+  buildExportName,
+  buildMetadataExportName,
+  buildSpriteSheetExportName,
+} from './imageIO';
 import { DEFAULT_SPRITESHEET_SETTINGS } from './spriteSheet';
 
 describe('buildExportName', () => {
@@ -36,5 +40,9 @@ describe('buildExportName', () => {
         frameHeight: 96,
       }),
     ).toBe('hero_spritesheet_5x2_128x96.png');
+  });
+
+  it('builds a metadata export name', () => {
+    expect(buildMetadataExportName('hero.png')).toBe('hero_metadata.json');
   });
 });
