@@ -51,6 +51,7 @@ const CLEAN_VIEW_MODES: { value: ViewMode; label: string; hotkey: string }[] = [
   { value: 'original', label: 'Original', hotkey: 'O' },
   { value: 'processed', label: 'Processed', hotkey: 'P' },
   { value: 'split', label: 'Split', hotkey: 'S' },
+  { value: 'alpha', label: 'Alpha mask', hotkey: 'A' },
 ];
 
 const SHEET_VIEW_MODES: { value: SpriteSheetPreviewMode; label: string }[] = [
@@ -439,6 +440,10 @@ export default function App() {
         case 's':
         case 'S':
           if (activeStep === 'clean') setCleanViewMode('split');
+          break;
+        case 'a':
+        case 'A':
+          if (activeStep === 'clean') setCleanViewMode('alpha');
           break;
         case 'Escape':
           if (eyedropperActive) {
