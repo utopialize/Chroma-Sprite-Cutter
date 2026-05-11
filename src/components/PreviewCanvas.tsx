@@ -456,10 +456,12 @@ function drawSourceOverlay(
   ctx.font = '11px system-ui, sans-serif';
   ctx.textBaseline = 'top';
 
-  for (const frame of result.frames) {
+  for (const frame of result.sourceFrames) {
     const source = frame.sourceRect;
     if (source.width <= 0 || source.height <= 0) continue;
-    ctx.strokeStyle = frame.empty
+    ctx.strokeStyle = !frame.included
+      ? 'rgba(226,106,106,0.78)'
+      : frame.empty
       ? 'rgba(226,106,106,0.78)'
       : 'rgba(91,157,255,0.78)';
     ctx.strokeRect(
@@ -477,7 +479,9 @@ function drawSourceOverlay(
         frame.contentRect.height - 1,
       );
     }
-    const label = String(frame.index + 1);
+    const label = frame.included
+      ? String(frame.sourceIndex + 1)
+      : `-${frame.sourceIndex + 1}`;
     const labelWidth = ctx.measureText(label).width + 8;
     ctx.fillStyle = 'rgba(16,17,19,0.72)';
     ctx.fillRect(source.x + 4, source.y + 4, labelWidth, 17);

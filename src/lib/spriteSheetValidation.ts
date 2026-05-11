@@ -14,6 +14,10 @@ export function validateSpriteSheetSettings(
 
   const diagnostics: SpriteSheetDiagnostic[] = [];
   const sourceCount = settings.sourceColumns * settings.sourceRows;
+  const excludedCount = settings.excludedSourceFrameIndices.filter(
+    (index) => index >= 0 && index < sourceCount,
+  ).length;
+  const includedCount = sourceCount - excludedCount;
   const outputCount = settings.outputColumns * settings.outputRows;
 
   if (!image) {
@@ -25,11 +29,19 @@ export function validateSpriteSheetSettings(
     return diagnostics;
   }
 
-  if (sourceCount !== outputCount) {
+  if (includedCount !== outputCount) {
     diagnostics.push({
       severity: 'warning',
       code: 'frame-count-mismatch',
-      message: `Source grid has ${sourceCount} cells but output grid has ${outputCount} frames.`,
+      message: `Selection has ${includedCount} included frame(s) but output grid has ${outputCount} slots.`,
+    });
+  }
+
+  if (includedCount === 0) {
+    diagnostics.push({
+      severity: 'warning',
+      code: 'no-included-frames',
+      message: 'No source frames are included in the output sheet.',
     });
   }
 

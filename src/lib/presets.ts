@@ -59,7 +59,12 @@ export function parseProjectPreset(text: string): ProjectPreset {
   } catch {
     throw new Error('Invalid JSON');
   }
-  if (isProjectPresetShape(parsed)) return parsed;
+  if (isProjectPresetShape(parsed)) {
+    return {
+      ...parsed,
+      spriteSheet: normalizeSpriteSheetSettings(parsed.spriteSheet),
+    };
+  }
   if (isPresetShape(parsed)) {
     throw new Error('This is a mask-only preset. Load it from Clean Background.');
   }
@@ -134,8 +139,26 @@ function isSpriteSheetSettings(value: unknown): value is SpriteSheetSettings {
       obj.anchor === 'bottom-center' ||
       obj.anchor === 'top-center') &&
     isFiniteNumber(obj.padding) &&
-    isFiniteNumber(obj.alphaThreshold)
+    isFiniteNumber(obj.alphaThreshold) &&
+    (obj.excludedSourceFrameIndices === undefined ||
+      isNumberArray(obj.excludedSourceFrameIndices))
   );
+}
+
+function isNumberArray(value: unknown): value is number[] {
+  return (
+    Array.isArray(value) &&
+    value.every((item) => typeof item === 'number' && Number.isFinite(item))
+  );
+}
+
+function normalizeSpriteSheetSettings(
+  settings: SpriteSheetSettings,
+): SpriteSheetSettings {
+  return {
+    ...settings,
+    excludedSourceFrameIndices: settings.excludedSourceFrameIndices ?? [],
+  };
 }
 
 export function downloadPreset(

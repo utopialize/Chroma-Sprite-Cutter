@@ -28,10 +28,12 @@ export interface SpriteSheetSettings {
   anchor: SpriteSheetAnchor;
   padding: number;
   alphaThreshold: number;
+  excludedSourceFrameIndices: number[];
 }
 
 export interface SpriteSheetFrame {
   index: number;
+  sourceIndex: number | null;
   sourceRect: Rect;
   contentRect: Rect | null;
   destinationCell: Rect;
@@ -39,9 +41,18 @@ export interface SpriteSheetFrame {
   empty: boolean;
 }
 
+export interface SpriteSheetSourceFrame {
+  sourceIndex: number;
+  sourceRect: Rect;
+  contentRect: Rect | null;
+  included: boolean;
+  empty: boolean;
+}
+
 export interface SpriteSheetBuildResult {
   imageData: ImageData;
   frames: SpriteSheetFrame[];
+  sourceFrames: SpriteSheetSourceFrame[];
   width: number;
   height: number;
 }

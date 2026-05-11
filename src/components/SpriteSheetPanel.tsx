@@ -122,6 +122,50 @@ const styles: Record<string, CSSProperties> = {
     fontSize: fontSize.xxs,
     lineHeight: 1.35,
   },
+  frameToolbar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  frameCount: {
+    flex: 1,
+    color: colors.textFaint,
+    fontSize: fontSize.xxs,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  compactButton: {
+    padding: '6px 8px',
+    border: `1px solid ${colors.borderInput}`,
+    borderRadius: radii.sm,
+    backgroundColor: colors.bgInput,
+    color: colors.textSecondary,
+    cursor: 'pointer',
+    fontSize: fontSize.xxs,
+    fontWeight: 600,
+  },
+  frameGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+    gap: spacing.sm,
+  },
+  frameToggle: {
+    minHeight: 30,
+    display: 'grid',
+    placeItems: 'center',
+    border: `1px solid ${colors.borderInput}`,
+    borderRadius: radii.sm,
+    backgroundColor: colors.bgInput,
+    color: colors.textFaint,
+    cursor: 'pointer',
+    fontSize: fontSize.xxs,
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  frameToggleActive: {
+    borderColor: colors.accentHi,
+    backgroundColor: colors.accent,
+    color: '#ffffff',
+  },
 };
 
 export function SpriteSheetPanel({
@@ -144,6 +188,20 @@ export function SpriteSheetPanel({
     };
 
   const contentStyle: CSSProperties = settings.enabled ? {} : styles.disabled;
+  const sourceFrameCount = settings.sourceColumns * settings.sourceRows;
+  const excluded = new Set(settings.excludedSourceFrameIndices);
+  const includedCount = Math.max(0, sourceFrameCount - excluded.size);
+
+  const setExcludedFrames = (excludedSourceFrameIndices: number[]) => {
+    onChange({ ...settings, excludedSourceFrameIndices });
+  };
+
+  const toggleSourceFrame = (sourceIndex: number) => {
+    const next = new Set(settings.excludedSourceFrameIndices);
+    if (next.has(sourceIndex)) next.delete(sourceIndex);
+    else next.add(sourceIndex);
+    setExcludedFrames([...next].sort((a, b) => a - b));
+  };
 
   return (
     <div style={styles.wrap}>
@@ -175,6 +233,7 @@ export function SpriteSheetPanel({
                 onChange({
                   ...settings,
                   ...template.settings,
+                  excludedSourceFrameIndices: [],
                 })
               }
             >
@@ -210,6 +269,67 @@ export function SpriteSheetPanel({
           >
             Auto-detect
           </button>
+        </div>
+      </div>
+
+      <div style={contentStyle}>
+        <span style={styles.section}>Frame selection</span>
+        <div style={styles.frameToolbar}>
+          <span style={styles.frameCount}>
+            {includedCount} / {sourceFrameCount} included
+          </span>
+          <button
+            type="button"
+            disabled={!settings.enabled}
+            style={{
+              ...styles.compactButton,
+              ...(!settings.enabled ? styles.modeButtonDisabled : {}),
+            }}
+            onClick={() => setExcludedFrames([])}
+          >
+            Include all
+          </button>
+          <button
+            type="button"
+            disabled={!settings.enabled}
+            style={{
+              ...styles.compactButton,
+              ...(!settings.enabled ? styles.modeButtonDisabled : {}),
+            }}
+            onClick={() =>
+              setExcludedFrames(
+                Array.from({ length: sourceFrameCount }, (_, index) => index),
+              )
+            }
+          >
+            Clear all
+          </button>
+        </div>
+        <div style={styles.frameGrid}>
+          {Array.from({ length: sourceFrameCount }, (_, sourceIndex) => {
+            const included = !excluded.has(sourceIndex);
+            return (
+              <button
+                key={sourceIndex}
+                type="button"
+                disabled={!settings.enabled}
+                style={{
+                  ...styles.frameToggle,
+                  ...(included ? styles.frameToggleActive : {}),
+                  ...(!settings.enabled ? styles.modeButtonDisabled : {}),
+                }}
+                aria-pressed={included}
+                title={
+                  included
+                    ? `Frame ${sourceIndex + 1} included`
+                    : `Frame ${sourceIndex + 1} excluded`
+                }
+                onClick={() => toggleSourceFrame(sourceIndex)}
+              >
+                {sourceIndex + 1}
+              </button>
+            );
+          })}
         </div>
       </div>
 

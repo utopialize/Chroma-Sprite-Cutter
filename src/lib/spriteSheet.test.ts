@@ -98,6 +98,30 @@ describe('buildFramePlan', () => {
 
     expect(frames[0].empty).toBe(true);
     expect(frames[1].empty).toBe(true);
+    expect(frames[1].sourceIndex).toBeNull();
     expect(frames[1].sourceRect).toEqual({ x: 0, y: 0, width: 0, height: 0 });
+  });
+
+  it('compacts included frames when a source frame is excluded', () => {
+    const image = makeImage(12, 4);
+    setAlpha(image, 1, 1, 255);
+    setAlpha(image, 5, 1, 255);
+    setAlpha(image, 9, 1, 255);
+
+    const frames = buildFramePlan(image, {
+      ...DEFAULT_SPRITESHEET_SETTINGS,
+      enabled: true,
+      sourceColumns: 3,
+      sourceRows: 1,
+      outputColumns: 3,
+      outputRows: 1,
+      frameWidth: 4,
+      frameHeight: 4,
+      excludedSourceFrameIndices: [1],
+    });
+
+    expect(frames[0].sourceIndex).toBe(0);
+    expect(frames[1].sourceIndex).toBe(2);
+    expect(frames[2].sourceIndex).toBeNull();
   });
 });

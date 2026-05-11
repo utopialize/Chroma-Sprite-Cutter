@@ -78,7 +78,7 @@ export async function exportIndividualFrames(
   if (!frameCtx) throw new Error('Cannot obtain 2D context');
 
   const stem = getStem(image.name);
-  for (const frame of result.frames) {
+  for (const frame of result.frames.filter((item) => item.sourceIndex !== null)) {
     frameCtx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
     frameCtx.drawImage(
       sourceCanvas,
@@ -181,6 +181,7 @@ function buildSpriteSheetMetadata(
     fitMode: settings.fitMode,
     frames: result.frames.map((frame) => ({
       index: frame.index,
+      sourceIndex: frame.sourceIndex,
       name: `frame_${String(frame.index + 1).padStart(3, '0')}`,
       empty: frame.empty,
       frame: frame.destinationCell,
