@@ -741,6 +741,8 @@ export default function App() {
             <SpriteSheetPanel
               settings={spriteSheetSettings}
               onChange={setSpriteSheetSettings}
+              image={image}
+              chromaSettings={settings}
             />
           }
         />

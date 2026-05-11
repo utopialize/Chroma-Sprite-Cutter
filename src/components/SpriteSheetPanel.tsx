@@ -1,6 +1,11 @@
+import { useEffect, useMemo, useRef } from 'react';
 import type { ChangeEvent, CSSProperties, ReactNode } from 'react';
+import { applyChromaKey } from '../lib/chromaKey';
+import { getSourceGridRects } from '../lib/spriteSheet';
 import { SPRITESHEET_TEMPLATES } from '../lib/spriteSheetTemplates';
+import type { ChromaKeySettings, LoadedImage } from '../types/image';
 import type {
+  Rect,
   SpriteSheetAnchor,
   SpriteSheetFitMode,
   SpriteSheetSettings,
@@ -10,7 +15,12 @@ import { colors, fontSize, radii, spacing } from '../theme';
 export interface SpriteSheetPanelProps {
   settings: SpriteSheetSettings;
   onChange: (settings: SpriteSheetSettings) => void;
+  image?: LoadedImage | null;
+  chromaSettings?: ChromaKeySettings;
 }
+
+const TILE_CANVAS_SIZE = 64;
+const CHECKER_TILE = 8;
 
 const styles: Record<string, CSSProperties> = {
   wrap: {
@@ -145,32 +155,73 @@ const styles: Record<string, CSSProperties> = {
   },
   frameGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))',
     gap: spacing.sm,
   },
-  frameToggle: {
-    minHeight: 30,
-    display: 'grid',
-    placeItems: 'center',
+  frameTile: {
+    position: 'relative',
+    aspectRatio: '1 / 1',
+    padding: 4,
     border: `1px solid ${colors.borderInput}`,
-    borderRadius: radii.sm,
+    borderRadius: radii.md,
     backgroundColor: colors.bgInput,
     color: colors.textFaint,
     cursor: 'pointer',
-    fontSize: fontSize.xxs,
+    overflow: 'hidden',
+    transition: 'border-color 120ms ease',
+    display: 'grid',
+    placeItems: 'center',
+  },
+  frameTileIncluded: {
+    borderColor: colors.accentHi,
+    boxShadow: `inset 0 0 0 1px ${colors.accent}`,
+  },
+  frameTileExcluded: {
+    opacity: 0.45,
+    filter: 'grayscale(0.35)',
+  },
+  frameTileCanvas: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'contain',
+    imageRendering: 'pixelated',
+    borderRadius: radii.sm,
+  },
+  frameTileBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    minWidth: 16,
+    padding: '0 4px',
+    height: 16,
+    display: 'grid',
+    placeItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    color: '#ffffff',
+    fontSize: 10,
     fontWeight: 700,
     fontVariantNumeric: 'tabular-nums',
+    borderRadius: radii.sm,
+    pointerEvents: 'none',
   },
-  frameToggleActive: {
-    borderColor: colors.accentHi,
+  frameTileBadgeIncluded: {
     backgroundColor: colors.accent,
-    color: '#ffffff',
+  },
+  frameTileEmptyState: {
+    color: colors.textDim,
+    fontSize: fontSize.xxs,
+    padding: spacing.md,
+    border: `1px dashed ${colors.borderInput}`,
+    borderRadius: radii.md,
+    textAlign: 'center',
   },
 };
 
 export function SpriteSheetPanel({
   settings,
   onChange,
+  image = null,
+  chromaSettings,
 }: SpriteSheetPanelProps) {
   const update = <K extends keyof SpriteSheetSettings>(
     key: K,
@@ -202,6 +253,34 @@ export function SpriteSheetPanel({
     else next.add(sourceIndex);
     setExcludedFrames([...next].sort((a, b) => a - b));
   };
+
+  const processedCanvas = useMemo(() => {
+    if (!image || !chromaSettings) return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(image.element, 0, 0);
+    const source = ctx.getImageData(0, 0, image.width, image.height);
+    const processed = applyChromaKey(source, chromaSettings);
+    ctx.clearRect(0, 0, image.width, image.height);
+    ctx.putImageData(processed, 0, 0);
+    return canvas;
+  }, [image, chromaSettings]);
+
+  const sourceRects = useMemo<Rect[]>(() => {
+    if (!image) return [];
+    return getSourceGridRects(image.width, image.height, settings);
+  }, [
+    image,
+    settings.sourceColumns,
+    settings.sourceRows,
+    settings.sourceMarginX,
+    settings.sourceMarginY,
+    settings.sourceGapX,
+    settings.sourceGapY,
+  ]);
 
   return (
     <div style={styles.wrap}>
@@ -305,32 +384,29 @@ export function SpriteSheetPanel({
             Clear all
           </button>
         </div>
-        <div style={styles.frameGrid}>
-          {Array.from({ length: sourceFrameCount }, (_, sourceIndex) => {
-            const included = !excluded.has(sourceIndex);
-            return (
-              <button
-                key={sourceIndex}
-                type="button"
-                disabled={!settings.enabled}
-                style={{
-                  ...styles.frameToggle,
-                  ...(included ? styles.frameToggleActive : {}),
-                  ...(!settings.enabled ? styles.modeButtonDisabled : {}),
-                }}
-                aria-pressed={included}
-                title={
-                  included
-                    ? `Frame ${sourceIndex + 1} included`
-                    : `Frame ${sourceIndex + 1} excluded`
-                }
-                onClick={() => toggleSourceFrame(sourceIndex)}
-              >
-                {sourceIndex + 1}
-              </button>
-            );
-          })}
-        </div>
+        {image ? (
+          <div style={styles.frameGrid}>
+            {Array.from({ length: sourceFrameCount }, (_, sourceIndex) => {
+              const included = !excluded.has(sourceIndex);
+              const rect = sourceRects[sourceIndex];
+              return (
+                <FramePreviewTile
+                  key={sourceIndex}
+                  index={sourceIndex}
+                  rect={rect}
+                  sourceCanvas={processedCanvas}
+                  included={included}
+                  disabled={!settings.enabled}
+                  onClick={() => toggleSourceFrame(sourceIndex)}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <div style={styles.frameTileEmptyState}>
+            Load a PNG to preview frames.
+          </div>
+        )}
       </div>
 
       <div style={contentStyle}>
@@ -471,6 +547,120 @@ export function SpriteSheetPanel({
       </span>
     </div>
   );
+}
+
+interface FramePreviewTileProps {
+  index: number;
+  rect: Rect | undefined;
+  sourceCanvas: HTMLCanvasElement | null;
+  included: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}
+
+function FramePreviewTile({
+  index,
+  rect,
+  sourceCanvas,
+  included,
+  disabled,
+  onClick,
+}: FramePreviewTileProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const size = canvas.width;
+
+    ctx.clearRect(0, 0, size, size);
+    drawCheckerBackground(ctx, size);
+
+    if (sourceCanvas && rect && rect.width > 0 && rect.height > 0) {
+      const scale = Math.min(size / rect.width, size / rect.height);
+      const drawWidth = rect.width * scale;
+      const drawHeight = rect.height * scale;
+      const drawX = (size - drawWidth) / 2;
+      const drawY = (size - drawHeight) / 2;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(
+        sourceCanvas,
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height,
+        drawX,
+        drawY,
+        drawWidth,
+        drawHeight,
+      );
+    }
+  }, [sourceCanvas, rect]);
+
+  const buttonStyle: CSSProperties = {
+    ...styles.frameTile,
+    ...(included ? styles.frameTileIncluded : styles.frameTileExcluded),
+    ...(disabled ? styles.modeButtonDisabled : {}),
+  };
+
+  const badgeStyle: CSSProperties = {
+    ...styles.frameTileBadge,
+    ...(included ? styles.frameTileBadgeIncluded : {}),
+  };
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      style={buttonStyle}
+      aria-pressed={included}
+      title={
+        included
+          ? `Frame ${index + 1} included - click to exclude`
+          : `Frame ${index + 1} excluded - click to include`
+      }
+      onClick={onClick}
+    >
+      <canvas
+        ref={canvasRef}
+        width={TILE_CANVAS_SIZE}
+        height={TILE_CANVAS_SIZE}
+        style={styles.frameTileCanvas}
+      />
+      <span style={badgeStyle}>{index + 1}</span>
+    </button>
+  );
+}
+
+function drawCheckerBackground(
+  ctx: CanvasRenderingContext2D,
+  size: number,
+): void {
+  const tile = document.createElement('canvas');
+  tile.width = CHECKER_TILE;
+  tile.height = CHECKER_TILE;
+  const tctx = tile.getContext('2d');
+  if (!tctx) {
+    ctx.fillStyle = colors.checkerLight;
+    ctx.fillRect(0, 0, size, size);
+    return;
+  }
+  const half = CHECKER_TILE / 2;
+  tctx.fillStyle = colors.checkerLight;
+  tctx.fillRect(0, 0, CHECKER_TILE, CHECKER_TILE);
+  tctx.fillStyle = colors.checkerDark;
+  tctx.fillRect(0, 0, half, half);
+  tctx.fillRect(half, half, half, half);
+  const pattern = ctx.createPattern(tile, 'repeat');
+  if (!pattern) {
+    ctx.fillStyle = colors.checkerLight;
+    ctx.fillRect(0, 0, size, size);
+    return;
+  }
+  ctx.fillStyle = pattern;
+  ctx.fillRect(0, 0, size, size);
 }
 
 type NumberKey = {
