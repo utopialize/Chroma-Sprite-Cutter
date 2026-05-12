@@ -782,6 +782,7 @@ export default function App() {
               onChange={setSpriteSheetSettings}
               image={image}
               chromaSettings={settings}
+              diagnostics={diagnostics}
             />
           }
         />

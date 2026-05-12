@@ -32,6 +32,7 @@ import type {
   SpriteSheetAnimationClip,
   SpriteSheetFitMode,
   SpriteSheetManualFrame,
+  SpriteSheetDiagnostic,
   SpriteSheetSettings,
 } from '../types/spriteSheet';
 import { colors, fontSize, radii, spacing } from '../theme';
@@ -41,10 +42,19 @@ export interface SpriteSheetPanelProps {
   onChange: (settings: SpriteSheetSettings) => void;
   image?: LoadedImage | null;
   chromaSettings?: ChromaKeySettings;
+  diagnostics?: SpriteSheetDiagnostic[];
 }
 
 const TILE_CANVAS_SIZE = 64;
 const CHECKER_TILE = 8;
+const BUILD_TABS: { value: BuildTab; label: string }[] = [
+  { value: 'grid', label: 'Grid' },
+  { value: 'frames', label: 'Frames' },
+  { value: 'animation', label: 'Animation' },
+  { value: 'diagnostics', label: 'Diagnostics' },
+];
+
+type BuildTab = 'grid' | 'frames' | 'animation' | 'diagnostics';
 
 const styles: Record<string, CSSProperties> = {
   wrap: {
@@ -72,6 +82,38 @@ const styles: Record<string, CSSProperties> = {
     width: 16,
     height: 16,
     accentColor: colors.accentHi,
+  },
+  segmented: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: spacing.xs,
+    padding: 4,
+    border: `1px solid ${colors.borderInput}`,
+    borderRadius: radii.md,
+    backgroundColor: colors.bgInput,
+  },
+  segmentedButton: {
+    padding: '8px 10px',
+    border: 'none',
+    borderRadius: radii.sm,
+    backgroundColor: 'transparent',
+    color: colors.textMuted,
+    cursor: 'pointer',
+    fontSize: fontSize.xs,
+    fontWeight: 700,
+  },
+  segmentedButtonActive: {
+    backgroundColor: colors.accent,
+    color: '#ffffff',
+  },
+  tabStrip: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    gap: spacing.xs,
+    padding: 4,
+    border: `1px solid ${colors.borderInput}`,
+    borderRadius: radii.md,
+    backgroundColor: colors.bgInput,
   },
   grid: {
     display: 'grid',
@@ -104,6 +146,23 @@ const styles: Record<string, CSSProperties> = {
     color: colors.textDim,
     fontSize: fontSize.xxs,
     lineHeight: 1.45,
+  },
+  diagnosticList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: spacing.sm,
+  },
+  diagnosticItem: {
+    padding: spacing.md,
+    border: `1px solid ${colors.borderInput}`,
+    borderRadius: radii.md,
+    backgroundColor: colors.bgInput,
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+    lineHeight: 1.4,
+  },
+  diagnosticError: {
+    borderColor: colors.danger,
   },
   modeGrid: {
     display: 'grid',
@@ -280,6 +339,43 @@ const styles: Record<string, CSSProperties> = {
     fontSize: fontSize.xxs,
     fontVariantNumeric: 'tabular-nums',
   },
+  drawerOverlay: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 50,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    display: 'flex',
+    justifyContent: 'flex-end',
+  },
+  drawer: {
+    width: 'min(380px, 92vw)',
+    height: '100%',
+    padding: spacing.xl,
+    boxSizing: 'border-box',
+    borderLeft: `1px solid ${colors.border}`,
+    backgroundColor: colors.bgPanel,
+    boxShadow: '0 0 28px rgba(0, 0, 0, 0.35)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: spacing.lg,
+    overflowY: 'auto',
+  },
+  drawerHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  drawerTitle: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: fontSize.sm,
+    fontWeight: 700,
+  },
+  drawerSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: spacing.md,
+  },
   clipList: {
     display: 'flex',
     flexDirection: 'column',
@@ -318,6 +414,17 @@ const styles: Record<string, CSSProperties> = {
   fullWidth: {
     gridColumn: '1 / -1',
   },
+  primaryWideButton: {
+    gridColumn: '1 / -1',
+    padding: '10px 12px',
+    border: `1px solid ${colors.accentHi}`,
+    borderRadius: radii.md,
+    backgroundColor: colors.accent,
+    color: '#ffffff',
+    cursor: 'pointer',
+    fontSize: fontSize.xs,
+    fontWeight: 700,
+  },
 };
 
 export function SpriteSheetPanel({
@@ -325,6 +432,7 @@ export function SpriteSheetPanel({
   onChange,
   image = null,
   chromaSettings,
+  diagnostics = [],
 }: SpriteSheetPanelProps) {
   const [selectedManualFrameId, setSelectedManualFrameId] = useState<string | null>(
     null,
@@ -332,6 +440,11 @@ export function SpriteSheetPanel({
   const [selectedManualFrameIds, setSelectedManualFrameIds] = useState<string[]>(
     [],
   );
+  const [builderMode, setBuilderMode] = useState<'simple' | 'advanced'>(
+    'simple',
+  );
+  const [activeTab, setActiveTab] = useState<BuildTab>('grid');
+  const [correctionDrawerOpen, setCorrectionDrawerOpen] = useState(false);
   const undoStack = useRef<SpriteSheetSettings[]>([]);
   const redoStack = useRef<SpriteSheetSettings[]>([]);
   const [historyVersion, setHistoryVersion] = useState(0);
@@ -368,6 +481,12 @@ export function SpriteSheetPanel({
     selectedManualFrameSet.has(frame.id),
   );
   const selectedManualCount = selectedManualFrames.length;
+  const diagnosticErrors = diagnostics.filter(
+    (diagnostic) => diagnostic.severity === 'error',
+  ).length;
+  const diagnosticWarnings = diagnostics.length - diagnosticErrors;
+  const exportReady =
+    settings.enabled && Boolean(image) && diagnosticErrors === 0;
 
   useEffect(() => {
     if (manualFrames.length === 0) {
@@ -489,6 +608,17 @@ export function SpriteSheetPanel({
     const frames = manualFrames.map((frame) =>
       targetIds.has(frame.id)
         ? { ...frame, locked: shouldLock }
+        : frame,
+    );
+    commitManualFrames(frames);
+  };
+
+  const resetSelectedCorrections = () => {
+    if (selectedManualFrames.length === 0) return;
+    const targetIds = new Set(selectedManualFrameIds);
+    const frames = manualFrames.map((frame) =>
+      targetIds.has(frame.id) && !frame.locked
+        ? { ...frame, offsetX: 0, offsetY: 0 }
         : frame,
     );
     commitManualFrames(frames);
@@ -664,644 +794,862 @@ export function SpriteSheetPanel({
         />
       </label>
 
-      <div style={contentStyle}>
-        <span style={styles.section}>Templates</span>
-        <div style={styles.templateGrid}>
-          {SPRITESHEET_TEMPLATES.map((template) => (
+      <div style={styles.tabStrip} aria-label="Build sections">
+        {BUILD_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            style={{
+              ...styles.segmentedButton,
+              ...(activeTab === tab.value ? styles.segmentedButtonActive : {}),
+            }}
+            onClick={() => setActiveTab(tab.value)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'grid' && (
+        <>
+          <div style={styles.segmented} aria-label="Builder complexity">
             <button
-              key={template.id}
               type="button"
-              disabled={!settings.enabled}
               style={{
-                ...styles.templateButton,
-                ...(!settings.enabled ? styles.modeButtonDisabled : {}),
+                ...styles.segmentedButton,
+                ...(builderMode === 'simple' ? styles.segmentedButtonActive : {}),
               }}
-              title={template.description}
-              onClick={() =>
-                onChange({
-                  ...settings,
-                  ...template.settings,
-                  excludedSourceFrameIndices: [],
-                  animations: [
-                    createAnimationClip({
-                      id: 'default-animation',
-                      name: 'default',
-                      startFrame: 1,
-                      endFrame:
-                        template.settings.outputColumns * template.settings.outputRows,
-                      fps: 8,
-                      loop: true,
-                      pingPong: false,
-                    }),
-                  ],
-                  activeAnimationId: 'default-animation',
-                  manualFrames: [],
-                  animationStartFrame: 1,
-                  animationEndFrame:
-                    template.settings.outputColumns * template.settings.outputRows,
-                })
-              }
+              onClick={() => setBuilderMode('simple')}
             >
-              <span style={styles.templateTitle}>{template.label}</span>
-              <span style={styles.templateDescription}>
-                {template.description}
-              </span>
+              Simple
             </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={contentStyle}>
-        <span style={styles.section}>Extraction mode</span>
-        <div style={styles.modeGrid}>
-          <button
-            type="button"
-            disabled={!settings.enabled}
-            style={{
-              ...styles.modeButton,
-              ...styles.modeButtonActive,
-              ...(!settings.enabled ? styles.modeButtonDisabled : {}),
-            }}
-            onClick={() => update('extractionMode', 'source-grid')}
-          >
-            Source Grid
-          </button>
-          <button
-            type="button"
-            disabled
-            style={{ ...styles.modeButton, ...styles.modeButtonDisabled }}
-            title="Auto-detect will be added after the source grid workflow is stable"
-          >
-            Auto-detect
-          </button>
-        </div>
-      </div>
-
-      <div style={contentStyle}>
-        <span style={styles.section}>Frame selection</span>
-        <div style={styles.frameToolbar}>
-          <span style={styles.frameCount}>
-            {includedCount} / {sourceFrameCount} included
-          </span>
-          <button
-            type="button"
-            disabled={!settings.enabled}
-            style={{
-              ...styles.compactButton,
-              ...(!settings.enabled ? styles.modeButtonDisabled : {}),
-            }}
-            onClick={() => setExcludedFrames([])}
-          >
-            Include all
-          </button>
-          <button
-            type="button"
-            disabled={!settings.enabled}
-            style={{
-              ...styles.compactButton,
-              ...(!settings.enabled ? styles.modeButtonDisabled : {}),
-            }}
-            onClick={() =>
-              setExcludedFrames(
-                Array.from({ length: sourceFrameCount }, (_, index) => index),
-              )
-            }
-          >
-            Clear all
-          </button>
-        </div>
-        {image ? (
-          <div style={styles.frameGrid}>
-            {Array.from({ length: sourceFrameCount }, (_, sourceIndex) => {
-              const included = !excluded.has(sourceIndex);
-              const rect = sourceRects[sourceIndex];
-              return (
-                <FramePreviewTile
-                  key={sourceIndex}
-                  index={sourceIndex}
-                  rect={rect}
-                  sourceCanvas={processedCanvas}
-                  included={included}
-                  disabled={!settings.enabled}
-                  onClick={() => toggleSourceFrame(sourceIndex)}
-                />
-              );
-            })}
-          </div>
-        ) : (
-          <div style={styles.frameTileEmptyState}>
-            Load a PNG to preview frames.
-          </div>
-        )}
-      </div>
-
-      <div style={contentStyle}>
-        <span style={styles.section}>Manual corrections</span>
-        <div style={styles.frameToolbar}>
-          <span style={styles.frameCount}>
-            {manualFrames.length} ordered frame{manualFrames.length === 1 ? '' : 's'}
-            {selectedManualCount > 0 ? ` - ${selectedManualCount} selected` : ''}
-          </span>
-          <button
-            type="button"
-            disabled={!settings.enabled || manualFrames.length === 0}
-            style={{
-              ...styles.compactButton,
-              ...(!settings.enabled || manualFrames.length === 0
-                ? styles.modeButtonDisabled
-                : {}),
-            }}
-            onClick={() => {
-              setSelectedManualFrameIds(manualFrames.map((frame) => frame.id));
-              setSelectedManualFrameId(manualFrames[0]?.id ?? null);
-            }}
-          >
-            Select all
-          </button>
-          <button
-            type="button"
-            disabled={!settings.enabled || selectedManualCount === 0}
-            style={{
-              ...styles.compactButton,
-              ...(!settings.enabled || selectedManualCount === 0
-                ? styles.modeButtonDisabled
-                : {}),
-            }}
-            onClick={() => {
-              setSelectedManualFrameIds([]);
-              setSelectedManualFrameId(null);
-            }}
-          >
-            Clear selection
-          </button>
-          <button
-            type="button"
-            disabled={!settings.enabled || undoStack.current.length === 0}
-            style={{
-              ...styles.compactButton,
-              ...(!settings.enabled || undoStack.current.length === 0
-                ? styles.modeButtonDisabled
-                : {}),
-            }}
-            onClick={undoManualAction}
-          >
-            Undo
-          </button>
-          <button
-            type="button"
-            disabled={!settings.enabled || redoStack.current.length === 0}
-            style={{
-              ...styles.compactButton,
-              ...(!settings.enabled || redoStack.current.length === 0
-                ? styles.modeButtonDisabled
-                : {}),
-            }}
-            onClick={redoManualAction}
-          >
-            Redo
-          </button>
-        </div>
-        <div style={styles.manualList}>
-          {manualFrames.map((frame, index) => (
             <button
-              key={frame.id}
               type="button"
-              disabled={!settings.enabled}
               style={{
-                ...styles.manualItem,
-                ...(selectedManualFrameSet.has(frame.id)
-                  ? styles.manualItemActive
+                ...styles.segmentedButton,
+                ...(builderMode === 'advanced'
+                  ? styles.segmentedButtonActive
                   : {}),
-                ...(!settings.enabled ? styles.modeButtonDisabled : {}),
               }}
-              onClick={(event) => handleManualFrameClick(event, frame.id, index)}
+              onClick={() => setBuilderMode('advanced')}
             >
-              <span style={styles.manualIndex}>{index + 1}</span>
-              <span style={styles.manualName}>{frame.name}</span>
-              <span style={styles.manualMeta}>
-                {frame.locked ? 'Locked' : `Src ${frame.sourceIndex === null ? '-' : frame.sourceIndex + 1}`}
-              </span>
+              Advanced
             </button>
-          ))}
-        </div>
-        {selectedManualCount > 0 ? (
-          <>
-            <label style={styles.field}>
-              <span style={styles.label}>Frame name</span>
-              <input
-                type="text"
-                value={selectedManualCount === 1 ? selectedManualFrame?.name ?? '' : ''}
-                disabled={
-                  !settings.enabled ||
-                  selectedManualCount !== 1 ||
-                  selectedManualFrame?.locked
-                }
-                onChange={(event) =>
-                  applyPatchToSelection({
-                    name: event.target.value || selectedManualFrame?.name || 'frame',
-                  })
-                }
-                style={styles.input}
-                placeholder={
-                  selectedManualCount === 1
-                    ? ''
-                    : 'Rename is only available for a single selected frame'
-                }
-              />
-            </label>
+          </div>
+
+          <div style={contentStyle}>
+            <span style={styles.section}>Templates</span>
+            <div style={styles.templateGrid}>
+              {SPRITESHEET_TEMPLATES.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  disabled={!settings.enabled}
+                  style={{
+                    ...styles.templateButton,
+                    ...(!settings.enabled ? styles.modeButtonDisabled : {}),
+                  }}
+                  title={template.description}
+                  onClick={() =>
+                    onChange({
+                      ...settings,
+                      ...template.settings,
+                      excludedSourceFrameIndices: [],
+                      animations: [
+                        createAnimationClip({
+                          id: 'default-animation',
+                          name: 'default',
+                          startFrame: 1,
+                          endFrame:
+                            template.settings.outputColumns *
+                            template.settings.outputRows,
+                          fps: 8,
+                          loop: true,
+                          pingPong: false,
+                        }),
+                      ],
+                      activeAnimationId: 'default-animation',
+                      manualFrames: [],
+                      animationStartFrame: 1,
+                      animationEndFrame:
+                        template.settings.outputColumns *
+                        template.settings.outputRows,
+                    })
+                  }
+                >
+                  <span style={styles.templateTitle}>{template.label}</span>
+                  <span style={styles.templateDescription}>
+                    {template.description}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={contentStyle}>
+            <span style={styles.section}>Grid setup</span>
             <div style={styles.grid}>
               <NumberField
-                label="Offset X"
-                min={-4096}
-                max={4096}
-                value={sharedOffsetX}
+                label="Source columns"
+                min={1}
+                max={64}
+                value={settings.sourceColumns}
                 disabled={!settings.enabled}
-                onChange={(event) =>
-                  applyPatchToSelection({
-                    offsetX: clampNumberInput(event.target.value, -4096, 4096),
-                  })
-                }
+                onChange={updateNumber('sourceColumns', 1, 64)}
               />
               <NumberField
-                label="Offset Y"
-                min={-4096}
+                label="Source rows"
+                min={1}
+                max={64}
+                value={settings.sourceRows}
+                disabled={!settings.enabled}
+                onChange={updateNumber('sourceRows', 1, 64)}
+              />
+              <NumberField
+                label="Output columns"
+                min={1}
+                max={64}
+                value={settings.outputColumns}
+                disabled={!settings.enabled}
+                onChange={updateNumber('outputColumns', 1, 64)}
+              />
+              <NumberField
+                label="Output rows"
+                min={1}
+                max={64}
+                value={settings.outputRows}
+                disabled={!settings.enabled}
+                onChange={updateNumber('outputRows', 1, 64)}
+              />
+              <NumberField
+                label="Frame W"
+                min={1}
                 max={4096}
-                value={sharedOffsetY}
+                value={settings.frameWidth}
+                disabled={!settings.enabled}
+                onChange={updateNumber('frameWidth', 1, 4096)}
+              />
+              <NumberField
+                label="Frame H"
+                min={1}
+                max={4096}
+                value={settings.frameHeight}
+                disabled={!settings.enabled}
+                onChange={updateNumber('frameHeight', 1, 4096)}
+              />
+              <NumberField
+                label="Padding"
+                min={0}
+                max={1024}
+                value={settings.padding}
+                disabled={!settings.enabled}
+                onChange={updateNumber('padding', 0, 1024)}
+              />
+              <SelectField
+                label="Fit"
+                value={settings.fitMode}
                 disabled={!settings.enabled}
                 onChange={(event) =>
-                  applyPatchToSelection({
-                    offsetY: clampNumberInput(event.target.value, -4096, 4096),
-                  })
+                  update('fitMode', event.target.value as SpriteSheetFitMode)
                 }
-              />
-            </div>
-            <div style={styles.actionGridWide}>
+              >
+                <option value="contain">Contain</option>
+                <option value="cover">Cover</option>
+                <option value="original">Original</option>
+              </SelectField>
+              <SelectField
+                label="Anchor"
+                value={settings.anchor}
+                disabled={!settings.enabled}
+                onChange={(event) =>
+                  update('anchor', event.target.value as SpriteSheetAnchor)
+                }
+              >
+                <option value="center">Center</option>
+                <option value="bottom-center">Bottom center</option>
+                <option value="top-center">Top center</option>
+              </SelectField>
               <button
                 type="button"
-                disabled={!settings.enabled || !processedImageData}
-                style={styles.compactButton}
-                title="Auto-center all unlocked frames horizontally"
-                onClick={() => autoCenterFrames(processedImageData, 'x')}
+                disabled={!settings.enabled}
+                style={{
+                  ...styles.primaryWideButton,
+                  ...(!settings.enabled ? styles.modeButtonDisabled : {}),
+                }}
+                onClick={() => onChange({ ...settings })}
               >
-                Auto-center X
-              </button>
-              <button
-                type="button"
-                disabled={!settings.enabled || !processedImageData}
-                style={styles.compactButton}
-                title="Auto-center all unlocked frames vertically"
-                onClick={() => autoCenterFrames(processedImageData, 'y')}
-              >
-                Auto-center Y
-              </button>
-              <button
-                type="button"
-                disabled={!settings.enabled || !processedImageData}
-                style={styles.compactButton}
-                title="Auto-center all unlocked frames on both axes"
-                onClick={() => autoCenterFrames(processedImageData, 'xy')}
-              >
-                Auto-center XY
+                Generate preview
               </button>
             </div>
-            <div style={styles.actionGrid}>
+          </div>
+
+          {builderMode === 'advanced' && (
+            <>
+              <div style={contentStyle}>
+                <span style={styles.section}>Extraction mode</span>
+                <div style={styles.modeGrid}>
+                  <button
+                    type="button"
+                    disabled={!settings.enabled}
+                    style={{
+                      ...styles.modeButton,
+                      ...styles.modeButtonActive,
+                      ...(!settings.enabled ? styles.modeButtonDisabled : {}),
+                    }}
+                    onClick={() => update('extractionMode', 'source-grid')}
+                  >
+                    Source Grid
+                  </button>
+                  <button
+                    type="button"
+                    disabled
+                    style={{
+                      ...styles.modeButton,
+                      ...styles.modeButtonDisabled,
+                    }}
+                    title="Auto-detect will be added after the source grid workflow is stable"
+                  >
+                    Auto-detect
+                  </button>
+                </div>
+              </div>
+
+              <div style={contentStyle}>
+                <span style={styles.section}>Source spacing</span>
+                <div style={styles.grid}>
+                  <NumberField
+                    label="Margin X"
+                    min={0}
+                    max={4096}
+                    value={settings.sourceMarginX}
+                    disabled={!settings.enabled}
+                    onChange={updateNumber('sourceMarginX', 0, 4096)}
+                  />
+                  <NumberField
+                    label="Margin Y"
+                    min={0}
+                    max={4096}
+                    value={settings.sourceMarginY}
+                    disabled={!settings.enabled}
+                    onChange={updateNumber('sourceMarginY', 0, 4096)}
+                  />
+                  <NumberField
+                    label="Gap X"
+                    min={0}
+                    max={4096}
+                    value={settings.sourceGapX}
+                    disabled={!settings.enabled}
+                    onChange={updateNumber('sourceGapX', 0, 4096)}
+                  />
+                  <NumberField
+                    label="Gap Y"
+                    min={0}
+                    max={4096}
+                    value={settings.sourceGapY}
+                    disabled={!settings.enabled}
+                    onChange={updateNumber('sourceGapY', 0, 4096)}
+                  />
+                  <NumberField
+                    label="Alpha"
+                    min={0}
+                    max={255}
+                    value={settings.alphaThreshold}
+                    disabled={!settings.enabled}
+                    onChange={updateNumber('alphaThreshold', 0, 255)}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {activeTab === 'frames' && (
+        <>
+          <div style={contentStyle}>
+            <span style={styles.section}>Frame selection</span>
+            <div style={styles.frameToolbar}>
+              <span style={styles.frameCount}>
+                {includedCount} / {sourceFrameCount} included
+              </span>
               <button
                 type="button"
-                disabled={
-                  !settings.enabled ||
-                  selectedManualCount !== 1 ||
-                  selectedManualFrame?.locked ||
-                  selectedManualIndex <= 0
-                }
-                style={styles.compactButton}
-                onClick={() => moveManualFrame(selectedManualIndex, -1)}
+                disabled={!settings.enabled}
+                style={{
+                  ...styles.compactButton,
+                  ...(!settings.enabled ? styles.modeButtonDisabled : {}),
+                }}
+                onClick={() => setExcludedFrames([])}
               >
-                Up
+                Include all
               </button>
               <button
                 type="button"
-                disabled={
-                  !settings.enabled ||
-                  selectedManualCount !== 1 ||
-                  selectedManualFrame?.locked ||
-                  selectedManualIndex >= manualFrames.length - 1
+                disabled={!settings.enabled}
+                style={{
+                  ...styles.compactButton,
+                  ...(!settings.enabled ? styles.modeButtonDisabled : {}),
+                }}
+                onClick={() =>
+                  setExcludedFrames(
+                    Array.from({ length: sourceFrameCount }, (_, index) => index),
+                  )
                 }
-                style={styles.compactButton}
-                onClick={() => moveManualFrame(selectedManualIndex, 1)}
               >
-                Down
+                Clear all
+              </button>
+            </div>
+            {image ? (
+              <div style={styles.frameGrid}>
+                {Array.from({ length: sourceFrameCount }, (_, sourceIndex) => {
+                  const included = !excluded.has(sourceIndex);
+                  const rect = sourceRects[sourceIndex];
+                  return (
+                    <FramePreviewTile
+                      key={sourceIndex}
+                      index={sourceIndex}
+                      rect={rect}
+                      sourceCanvas={processedCanvas}
+                      included={included}
+                      disabled={!settings.enabled}
+                      onClick={() => toggleSourceFrame(sourceIndex)}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={styles.frameTileEmptyState}>
+                Load a PNG to preview frames.
+              </div>
+            )}
+          </div>
+
+          <div style={contentStyle}>
+            <span style={styles.section}>Output frames</span>
+            <div style={styles.frameToolbar}>
+              <span style={styles.frameCount}>
+                {manualFrames.length} ordered frame
+                {manualFrames.length === 1 ? '' : 's'}
+                {selectedManualCount > 0
+                  ? ` - ${selectedManualCount} selected`
+                  : ''}
+              </span>
+              <button
+                type="button"
+                disabled={!settings.enabled || selectedManualCount === 0}
+                style={{
+                  ...styles.compactButton,
+                  ...(!settings.enabled || selectedManualCount === 0
+                    ? styles.modeButtonDisabled
+                    : {}),
+                }}
+                onClick={() => setCorrectionDrawerOpen(true)}
+              >
+                Edit selected frame
               </button>
               <button
                 type="button"
-                disabled={
-                  !settings.enabled ||
-                  selectedManualFrames.every((frame) => frame.locked)
-                }
-                style={styles.compactButton}
-                onClick={duplicateSelectedFrame}
+                disabled={!settings.enabled || manualFrames.length === 0}
+                style={{
+                  ...styles.compactButton,
+                  ...(!settings.enabled || manualFrames.length === 0
+                    ? styles.modeButtonDisabled
+                    : {}),
+                }}
+                onClick={() => {
+                  setSelectedManualFrameIds(manualFrames.map((frame) => frame.id));
+                  setSelectedManualFrameId(manualFrames[0]?.id ?? null);
+                }}
               >
-                Duplicate
-              </button>
-              <button
-                type="button"
-                disabled={
-                  !settings.enabled ||
-                  selectedManualFrames.every((frame) => frame.locked)
-                }
-                style={styles.compactButton}
-                onClick={deleteSelectedFrame}
-              >
-                Delete
+                Select all
               </button>
               <button
                 type="button"
                 disabled={!settings.enabled || selectedManualCount === 0}
-                style={styles.compactButton}
-                onClick={toggleSelectedLock}
+                style={{
+                  ...styles.compactButton,
+                  ...(!settings.enabled || selectedManualCount === 0
+                    ? styles.modeButtonDisabled
+                    : {}),
+                }}
+                onClick={() => {
+                  setSelectedManualFrameIds([]);
+                  setSelectedManualFrameId(null);
+                  setCorrectionDrawerOpen(false);
+                }}
               >
-                {selectedManualFrames.some((frame) => !frame.locked)
-                  ? 'Lock'
-                  : 'Unlock'}
+                Clear selection
               </button>
             </div>
-          </>
-        ) : (
-          <div style={styles.frameTileEmptyState}>
-            Include at least one frame to edit the output order.
+            <div style={styles.manualList}>
+              {manualFrames.map((frame, index) => (
+                <button
+                  key={frame.id}
+                  type="button"
+                  disabled={!settings.enabled}
+                  style={{
+                    ...styles.manualItem,
+                    ...(selectedManualFrameSet.has(frame.id)
+                      ? styles.manualItemActive
+                      : {}),
+                    ...(!settings.enabled ? styles.modeButtonDisabled : {}),
+                  }}
+                  onClick={(event) =>
+                    handleManualFrameClick(event, frame.id, index)
+                  }
+                >
+                  <span style={styles.manualIndex}>{index + 1}</span>
+                  <span style={styles.manualName}>{frame.name}</span>
+                  <span style={styles.manualMeta}>
+                    {frame.locked
+                      ? 'Locked'
+                      : `Src ${
+                          frame.sourceIndex === null
+                            ? '-'
+                            : frame.sourceIndex + 1
+                        }`}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <span style={styles.help}>
+              Select one or more output frames, then open the editor drawer to
+              rename, offset, duplicate, delete, lock, reorder, or reset them.
+            </span>
           </div>
-        )}
-      </div>
+          {correctionDrawerOpen && selectedManualCount > 0 && (
+            <div
+              style={styles.drawerOverlay}
+              role="presentation"
+              onClick={() => setCorrectionDrawerOpen(false)}
+            >
+              <div
+                style={styles.drawer}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Edit selected frame"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div style={styles.drawerHeader}>
+                  <span style={styles.drawerTitle}>
+                    Edit selected frame
+                  </span>
+                  <button
+                    type="button"
+                    style={styles.compactButton}
+                    onClick={() => setCorrectionDrawerOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+                <span style={styles.help}>
+                  {selectedManualCount} selected frame
+                  {selectedManualCount === 1 ? '' : 's'}
+                </span>
+                <div style={styles.drawerSection}>
+                  <label style={styles.field}>
+                    <span style={styles.label}>Frame name</span>
+                    <input
+                      type="text"
+                      value={
+                        selectedManualCount === 1
+                          ? selectedManualFrame?.name ?? ''
+                          : ''
+                      }
+                      disabled={
+                        !settings.enabled ||
+                        selectedManualCount !== 1 ||
+                        selectedManualFrame?.locked
+                      }
+                      onChange={(event) =>
+                        applyPatchToSelection({
+                          name:
+                            event.target.value ||
+                            selectedManualFrame?.name ||
+                            'frame',
+                        })
+                      }
+                      style={styles.input}
+                      placeholder={
+                        selectedManualCount === 1
+                          ? ''
+                          : 'Single selection only'
+                      }
+                    />
+                  </label>
+                  <div style={styles.grid}>
+                    <NumberField
+                      label="Offset X"
+                      min={-4096}
+                      max={4096}
+                      value={sharedOffsetX}
+                      disabled={!settings.enabled}
+                      onChange={(event) =>
+                        applyPatchToSelection({
+                          offsetX: clampNumberInput(
+                            event.target.value,
+                            -4096,
+                            4096,
+                          ),
+                        })
+                      }
+                    />
+                    <NumberField
+                      label="Offset Y"
+                      min={-4096}
+                      max={4096}
+                      value={sharedOffsetY}
+                      disabled={!settings.enabled}
+                      onChange={(event) =>
+                        applyPatchToSelection({
+                          offsetY: clampNumberInput(
+                            event.target.value,
+                            -4096,
+                            4096,
+                          ),
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <div style={styles.drawerSection}>
+                  <div style={styles.actionGridWide}>
+                    <button
+                      type="button"
+                      disabled={!settings.enabled || !processedImageData}
+                      style={styles.compactButton}
+                      onClick={() => autoCenterFrames(processedImageData, 'x')}
+                    >
+                      Auto-center X
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!settings.enabled || !processedImageData}
+                      style={styles.compactButton}
+                      onClick={() => autoCenterFrames(processedImageData, 'y')}
+                    >
+                      Auto-center Y
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!settings.enabled || !processedImageData}
+                      style={styles.compactButton}
+                      onClick={() => autoCenterFrames(processedImageData, 'xy')}
+                    >
+                      Auto-center XY
+                    </button>
+                  </div>
+                  <div style={styles.actionGrid}>
+                    <button
+                      type="button"
+                      disabled={
+                        !settings.enabled ||
+                        selectedManualCount !== 1 ||
+                        selectedManualFrame?.locked ||
+                        selectedManualIndex <= 0
+                      }
+                      style={styles.compactButton}
+                      onClick={() => moveManualFrame(selectedManualIndex, -1)}
+                    >
+                      Move up
+                    </button>
+                    <button
+                      type="button"
+                      disabled={
+                        !settings.enabled ||
+                        selectedManualCount !== 1 ||
+                        selectedManualFrame?.locked ||
+                        selectedManualIndex >= manualFrames.length - 1
+                      }
+                      style={styles.compactButton}
+                      onClick={() => moveManualFrame(selectedManualIndex, 1)}
+                    >
+                      Move down
+                    </button>
+                    <button
+                      type="button"
+                      disabled={
+                        !settings.enabled ||
+                        selectedManualFrames.every((frame) => frame.locked)
+                      }
+                      style={styles.compactButton}
+                      onClick={duplicateSelectedFrame}
+                    >
+                      Duplicate
+                    </button>
+                    <button
+                      type="button"
+                      disabled={
+                        !settings.enabled ||
+                        selectedManualFrames.every((frame) => frame.locked)
+                      }
+                      style={styles.compactButton}
+                      onClick={deleteSelectedFrame}
+                    >
+                      Delete
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!settings.enabled || selectedManualCount === 0}
+                      style={styles.compactButton}
+                      onClick={toggleSelectedLock}
+                    >
+                      {selectedManualFrames.some((frame) => !frame.locked)
+                        ? 'Lock'
+                        : 'Unlock'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={
+                        !settings.enabled ||
+                        selectedManualFrames.every((frame) => frame.locked)
+                      }
+                      style={styles.compactButton}
+                      onClick={resetSelectedCorrections}
+                    >
+                      Reset correction
+                    </button>
+                  </div>
+                </div>
+                <div style={styles.drawerSection}>
+                  <div style={styles.actionGrid}>
+                    <button
+                      type="button"
+                      disabled={!settings.enabled || undoStack.current.length === 0}
+                      style={{
+                        ...styles.compactButton,
+                        ...(!settings.enabled || undoStack.current.length === 0
+                          ? styles.modeButtonDisabled
+                          : {}),
+                      }}
+                      onClick={undoManualAction}
+                    >
+                      Undo
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!settings.enabled || redoStack.current.length === 0}
+                      style={{
+                        ...styles.compactButton,
+                        ...(!settings.enabled || redoStack.current.length === 0
+                          ? styles.modeButtonDisabled
+                          : {}),
+                      }}
+                      onClick={redoManualAction}
+                    >
+                      Redo
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
-      <div style={contentStyle}>
-        <span style={styles.section}>Source grid</span>
-        <div style={styles.grid}>
-          <NumberField
-            label="Columns"
-            min={1}
-            max={64}
-            value={settings.sourceColumns}
-            disabled={!settings.enabled}
-            onChange={updateNumber('sourceColumns', 1, 64)}
-          />
-          <NumberField
-            label="Rows"
-            min={1}
-            max={64}
-            value={settings.sourceRows}
-            disabled={!settings.enabled}
-            onChange={updateNumber('sourceRows', 1, 64)}
-          />
-          <NumberField
-            label="Margin X"
-            min={0}
-            max={4096}
-            value={settings.sourceMarginX}
-            disabled={!settings.enabled}
-            onChange={updateNumber('sourceMarginX', 0, 4096)}
-          />
-          <NumberField
-            label="Margin Y"
-            min={0}
-            max={4096}
-            value={settings.sourceMarginY}
-            disabled={!settings.enabled}
-            onChange={updateNumber('sourceMarginY', 0, 4096)}
-          />
-          <NumberField
-            label="Gap X"
-            min={0}
-            max={4096}
-            value={settings.sourceGapX}
-            disabled={!settings.enabled}
-            onChange={updateNumber('sourceGapX', 0, 4096)}
-          />
-          <NumberField
-            label="Gap Y"
-            min={0}
-            max={4096}
-            value={settings.sourceGapY}
-            disabled={!settings.enabled}
-            onChange={updateNumber('sourceGapY', 0, 4096)}
-          />
-        </div>
-      </div>
-
-      <div style={contentStyle}>
-        <span style={styles.section}>Output grid</span>
-        <div style={styles.grid}>
-          <NumberField
-            label="Columns"
-            min={1}
-            max={64}
-            value={settings.outputColumns}
-            disabled={!settings.enabled}
-            onChange={updateNumber('outputColumns', 1, 64)}
-          />
-          <NumberField
-            label="Rows"
-            min={1}
-            max={64}
-            value={settings.outputRows}
-            disabled={!settings.enabled}
-            onChange={updateNumber('outputRows', 1, 64)}
-          />
-          <NumberField
-            label="Frame W"
-            min={1}
-            max={4096}
-            value={settings.frameWidth}
-            disabled={!settings.enabled}
-            onChange={updateNumber('frameWidth', 1, 4096)}
-          />
-          <NumberField
-            label="Frame H"
-            min={1}
-            max={4096}
-            value={settings.frameHeight}
-            disabled={!settings.enabled}
-            onChange={updateNumber('frameHeight', 1, 4096)}
-          />
-          <NumberField
-            label="Padding"
-            min={0}
-            max={1024}
-            value={settings.padding}
-            disabled={!settings.enabled}
-            onChange={updateNumber('padding', 0, 1024)}
-          />
-          <NumberField
-            label="Alpha"
-            min={0}
-            max={255}
-            value={settings.alphaThreshold}
-            disabled={!settings.enabled}
-            onChange={updateNumber('alphaThreshold', 0, 255)}
-          />
-          <SelectField
-            label="Fit"
-            value={settings.fitMode}
-            disabled={!settings.enabled}
-            onChange={(event) =>
-              update('fitMode', event.target.value as SpriteSheetFitMode)
-            }
-          >
-            <option value="contain">Contain</option>
-            <option value="cover">Cover</option>
-            <option value="original">Original</option>
-          </SelectField>
-          <SelectField
-            label="Anchor"
-            value={settings.anchor}
-            disabled={!settings.enabled}
-            onChange={(event) =>
-              update('anchor', event.target.value as SpriteSheetAnchor)
-            }
-          >
-            <option value="center">Center</option>
-            <option value="bottom-center">Bottom center</option>
-            <option value="top-center">Top center</option>
-          </SelectField>
-        </div>
-      </div>
-
-      <div style={contentStyle}>
-        <span style={styles.section}>Animation</span>
-        <div style={styles.frameToolbar}>
-          <span style={styles.frameCount}>
-            {animationClips.length} clip{animationClips.length === 1 ? '' : 's'}
-          </span>
-          <button
-            type="button"
-            disabled={!settings.enabled}
-            style={{
-              ...styles.compactButton,
-              ...(!settings.enabled ? styles.modeButtonDisabled : {}),
-            }}
-            onClick={addAnimationClip}
-          >
-            Add clip
-          </button>
-          <button
-            type="button"
-            disabled={!settings.enabled || animationClips.length <= 1}
-            style={{
-              ...styles.compactButton,
-              ...(!settings.enabled || animationClips.length <= 1
-                ? styles.modeButtonDisabled
-                : {}),
-            }}
-            onClick={deleteActiveAnimation}
-          >
-            Delete clip
-          </button>
-        </div>
-        <div style={styles.clipList}>
-          {animationClips.map((clip) => (
+      {activeTab === 'animation' && (
+        <div style={contentStyle}>
+          <span style={styles.section}>Animation</span>
+          <div style={styles.frameToolbar}>
+            <span style={styles.frameCount}>
+              {animationClips.length} clip{animationClips.length === 1 ? '' : 's'}
+            </span>
             <button
-              key={clip.id}
               type="button"
               disabled={!settings.enabled}
               style={{
-                ...styles.clipItem,
-                ...(clip.id === activeAnimation.id ? styles.manualItemActive : {}),
+                ...styles.compactButton,
                 ...(!settings.enabled ? styles.modeButtonDisabled : {}),
               }}
-              onClick={() => selectAnimationClip(clip.id)}
+              onClick={addAnimationClip}
             >
-              <span style={styles.manualName}>{clip.name}</span>
-              <span style={styles.clipItemMeta}>
-                {clip.startFrame}-{clip.endFrame} @ {clip.fps} fps
-              </span>
+              Add clip
             </button>
-          ))}
+            <button
+              type="button"
+              disabled={!settings.enabled || animationClips.length <= 1}
+              style={{
+                ...styles.compactButton,
+                ...(!settings.enabled || animationClips.length <= 1
+                  ? styles.modeButtonDisabled
+                  : {}),
+              }}
+              onClick={deleteActiveAnimation}
+            >
+              Delete clip
+            </button>
+          </div>
+          <div style={styles.clipList}>
+            {animationClips.map((clip) => (
+              <button
+                key={clip.id}
+                type="button"
+                disabled={!settings.enabled}
+                style={{
+                  ...styles.clipItem,
+                  ...(clip.id === activeAnimation.id
+                    ? styles.manualItemActive
+                    : {}),
+                  ...(!settings.enabled ? styles.modeButtonDisabled : {}),
+                }}
+                onClick={() => selectAnimationClip(clip.id)}
+              >
+                <span style={styles.manualName}>{clip.name}</span>
+                <span style={styles.clipItemMeta}>
+                  {clip.startFrame}-{clip.endFrame} @ {clip.fps} fps
+                </span>
+              </button>
+            ))}
+          </div>
+          <div style={styles.grid}>
+            <label style={{ ...styles.field, ...styles.fullWidth }}>
+              <span style={styles.label}>Name</span>
+              <input
+                type="text"
+                value={activeAnimation.name}
+                disabled={!settings.enabled}
+                onChange={(event) =>
+                  updateActiveAnimation({ name: event.target.value || 'clip' })
+                }
+                style={styles.input}
+              />
+            </label>
+            <NumberField
+              label="Start"
+              min={1}
+              max={Math.max(1, manualFrames.length)}
+              value={activeAnimation.startFrame}
+              disabled={!settings.enabled}
+              onChange={(event) =>
+                updateActiveAnimation({
+                  startFrame: clampNumberInput(
+                    event.target.value,
+                    1,
+                    Math.max(1, manualFrames.length),
+                  ),
+                })
+              }
+            />
+            <NumberField
+              label="End"
+              min={1}
+              max={Math.max(1, manualFrames.length)}
+              value={activeAnimation.endFrame}
+              disabled={!settings.enabled}
+              onChange={(event) =>
+                updateActiveAnimation({
+                  endFrame: clampNumberInput(
+                    event.target.value,
+                    1,
+                    Math.max(1, manualFrames.length),
+                  ),
+                })
+              }
+            />
+            <NumberField
+              label="FPS"
+              min={1}
+              max={60}
+              value={activeAnimation.fps}
+              disabled={!settings.enabled}
+              onChange={(event) =>
+                updateActiveAnimation({
+                  fps: clampNumberInput(event.target.value, 1, 60),
+                })
+              }
+            />
+            <label style={styles.toggleRow}>
+              <span>Loop</span>
+              <input
+                type="checkbox"
+                checked={activeAnimation.loop}
+                disabled={!settings.enabled}
+                onChange={(event) =>
+                  updateActiveAnimation({ loop: event.target.checked })
+                }
+                style={styles.checkbox}
+              />
+            </label>
+            <label style={styles.toggleRow}>
+              <span>Ping-pong</span>
+              <input
+                type="checkbox"
+                checked={activeAnimation.pingPong}
+                disabled={!settings.enabled}
+                onChange={(event) =>
+                  updateActiveAnimation({ pingPong: event.target.checked })
+                }
+                style={styles.checkbox}
+              />
+            </label>
+          </div>
+          <span style={styles.help}>
+            The animation preview is shown in the left workspace panel and uses
+            the active clip.
+          </span>
         </div>
-        <div style={styles.grid}>
-          <label style={{ ...styles.field, ...styles.fullWidth }}>
-            <span style={styles.label}>Name</span>
-            <input
-              type="text"
-              value={activeAnimation.name}
-              disabled={!settings.enabled}
-              onChange={(event) =>
-                updateActiveAnimation({ name: event.target.value || 'clip' })
-              }
-              style={styles.input}
-            />
-          </label>
-          <NumberField
-            label="Start"
-            min={1}
-            max={Math.max(1, manualFrames.length)}
-            value={activeAnimation.startFrame}
-            disabled={!settings.enabled}
-            onChange={(event) =>
-              updateActiveAnimation({
-                startFrame: clampNumberInput(
-                  event.target.value,
-                  1,
-                  Math.max(1, manualFrames.length),
-                ),
-              })
-            }
-          />
-          <NumberField
-            label="End"
-            min={1}
-            max={Math.max(1, manualFrames.length)}
-            value={activeAnimation.endFrame}
-            disabled={!settings.enabled}
-            onChange={(event) =>
-              updateActiveAnimation({
-                endFrame: clampNumberInput(
-                  event.target.value,
-                  1,
-                  Math.max(1, manualFrames.length),
-                ),
-              })
-            }
-          />
-          <NumberField
-            label="FPS"
-            min={1}
-            max={60}
-            value={activeAnimation.fps}
-            disabled={!settings.enabled}
-            onChange={(event) =>
-              updateActiveAnimation({
-                fps: clampNumberInput(event.target.value, 1, 60),
-              })
-            }
-          />
-          <label style={styles.toggleRow}>
-            <span>Loop</span>
-            <input
-              type="checkbox"
-              checked={activeAnimation.loop}
-              disabled={!settings.enabled}
-              onChange={(event) =>
-                updateActiveAnimation({ loop: event.target.checked })
-              }
-              style={styles.checkbox}
-            />
-          </label>
-          <label style={styles.toggleRow}>
-            <span>Ping-pong</span>
-            <input
-              type="checkbox"
-              checked={activeAnimation.pingPong}
-              disabled={!settings.enabled}
-              onChange={(event) =>
-                updateActiveAnimation({ pingPong: event.target.checked })
-              }
-              style={styles.checkbox}
-            />
-          </label>
-        </div>
-      </div>
+      )}
+
+      {activeTab === 'diagnostics' && (
+        <>
+          <div style={contentStyle}>
+            <span style={styles.section}>Export readiness</span>
+            <div style={styles.diagnosticList}>
+              <div style={styles.diagnosticItem}>
+                {exportReady
+                  ? 'Ready to export: no blocking sheet errors detected.'
+                  : 'Not ready: fix blocking sheet errors before export.'}
+              </div>
+              <div style={styles.grid}>
+                <div style={styles.diagnosticItem}>
+                  Frames: {manualFrames.length} /{' '}
+                  {settings.outputColumns * settings.outputRows} slots
+                </div>
+                <div style={styles.diagnosticItem}>
+                  Final size:{' '}
+                  {settings.outputColumns * settings.frameWidth} x{' '}
+                  {settings.outputRows * settings.frameHeight} px
+                </div>
+                <div style={styles.diagnosticItem}>
+                  Errors: {diagnosticErrors}
+                </div>
+                <div style={styles.diagnosticItem}>
+                  Warnings: {diagnosticWarnings}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style={contentStyle}>
+            <span style={styles.section}>Warnings</span>
+            <div style={styles.diagnosticList}>
+              {diagnostics.length === 0 ? (
+                <div style={styles.diagnosticItem}>
+                  No sheet warnings detected.
+                </div>
+              ) : (
+                diagnostics.map((diagnostic) => (
+                  <div
+                    key={diagnostic.code}
+                    style={{
+                      ...styles.diagnosticItem,
+                      ...(diagnostic.severity === 'error'
+                        ? styles.diagnosticError
+                        : {}),
+                    }}
+                  >
+                    {diagnostic.message}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       <span style={styles.help}>
         Processed preview and export use the rebuilt sheet while this mode is
-        enabled.
+        enabled. Advanced mode reveals frame selection, manual corrections,
+        animation clips, spacing, and diagnostics-oriented settings.
       </span>
     </div>
   );
