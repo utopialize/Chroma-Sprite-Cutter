@@ -4,6 +4,7 @@ import type {
   SpriteSheetDiagnostic,
   SpriteSheetSettings,
 } from '../types/spriteSheet';
+import { getEffectiveManualFrames } from './manualFrames';
 
 export function validateSpriteSheetSettings(
   image: LoadedImage | null,
@@ -13,11 +14,7 @@ export function validateSpriteSheetSettings(
   if (!settings.enabled) return [];
 
   const diagnostics: SpriteSheetDiagnostic[] = [];
-  const sourceCount = settings.sourceColumns * settings.sourceRows;
-  const excludedCount = settings.excludedSourceFrameIndices.filter(
-    (index) => index >= 0 && index < sourceCount,
-  ).length;
-  const includedCount = sourceCount - excludedCount;
+  const orderedCount = getEffectiveManualFrames(settings).length;
   const outputCount = settings.outputColumns * settings.outputRows;
 
   if (!image) {
@@ -29,19 +26,35 @@ export function validateSpriteSheetSettings(
     return diagnostics;
   }
 
-  if (includedCount !== outputCount) {
+  if (orderedCount !== outputCount) {
     diagnostics.push({
       severity: 'warning',
       code: 'frame-count-mismatch',
-      message: `Selection has ${includedCount} included frame(s) but output grid has ${outputCount} slots.`,
+      message: `Manual frame order has ${orderedCount} frame(s) but output grid has ${outputCount} slots.`,
     });
   }
 
-  if (includedCount === 0) {
+  if (orderedCount === 0) {
     diagnostics.push({
       severity: 'warning',
       code: 'no-included-frames',
       message: 'No source frames are included in the output sheet.',
+    });
+  }
+
+  if (settings.animationStartFrame > orderedCount && orderedCount > 0) {
+    diagnostics.push({
+      severity: 'warning',
+      code: 'animation-range-outside-selection',
+      message: 'Animation start frame is outside the included frame selection.',
+    });
+  }
+
+  if (settings.animationEndFrame > orderedCount && orderedCount > 0) {
+    diagnostics.push({
+      severity: 'warning',
+      code: 'animation-range-clamped',
+      message: 'Animation end frame is past the included frames and will be clamped.',
     });
   }
 

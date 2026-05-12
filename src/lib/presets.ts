@@ -141,7 +141,18 @@ function isSpriteSheetSettings(value: unknown): value is SpriteSheetSettings {
     isFiniteNumber(obj.padding) &&
     isFiniteNumber(obj.alphaThreshold) &&
     (obj.excludedSourceFrameIndices === undefined ||
-      isNumberArray(obj.excludedSourceFrameIndices))
+      isNumberArray(obj.excludedSourceFrameIndices)) &&
+    (obj.manualFrames === undefined || isManualFrameArray(obj.manualFrames)) &&
+    (obj.animationName === undefined || typeof obj.animationName === 'string') &&
+    (obj.animationStartFrame === undefined ||
+      isFiniteNumber(obj.animationStartFrame)) &&
+    (obj.animationEndFrame === undefined ||
+      isFiniteNumber(obj.animationEndFrame)) &&
+    (obj.animationFps === undefined || isFiniteNumber(obj.animationFps)) &&
+    (obj.animationLoop === undefined ||
+      typeof obj.animationLoop === 'boolean') &&
+    (obj.animationPingPong === undefined ||
+      typeof obj.animationPingPong === 'boolean')
   );
 }
 
@@ -152,12 +163,39 @@ function isNumberArray(value: unknown): value is number[] {
   );
 }
 
+function isManualFrameArray(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every((item) => {
+      if (!item || typeof item !== 'object') return false;
+      const obj = item as Record<string, unknown>;
+      return (
+        typeof obj.id === 'string' &&
+        (typeof obj.sourceIndex === 'number' || obj.sourceIndex === null) &&
+        typeof obj.name === 'string' &&
+        isFiniteNumber(obj.offsetX) &&
+        isFiniteNumber(obj.offsetY) &&
+        typeof obj.locked === 'boolean'
+      );
+    })
+  );
+}
+
 function normalizeSpriteSheetSettings(
   settings: SpriteSheetSettings,
 ): SpriteSheetSettings {
   return {
     ...settings,
     excludedSourceFrameIndices: settings.excludedSourceFrameIndices ?? [],
+    animationName: settings.animationName ?? 'default',
+    animationStartFrame: settings.animationStartFrame ?? 1,
+    animationEndFrame:
+      settings.animationEndFrame ??
+      settings.outputColumns * settings.outputRows,
+    animationFps: settings.animationFps ?? 8,
+    animationLoop: settings.animationLoop ?? true,
+    animationPingPong: settings.animationPingPong ?? false,
+    manualFrames: settings.manualFrames ?? [],
   };
 }
 

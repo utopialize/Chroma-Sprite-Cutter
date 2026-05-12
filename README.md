@@ -41,6 +41,10 @@ The app is organized as a guided 4-step workflow.
   and `RPG walk`.
 - Select which source frames are included in the rebuilt sheet, with excluded
   frames removed and the remaining frames compacted in order.
+- Apply manual corrections to output frames: rename, reorder, duplicate, delete,
+  lock, and adjust X/Y offsets.
+- Undo and redo manual frame correction actions.
+- Configure a named animation range with FPS, loop, and ping-pong playback.
 - Preview the result as Source overlay, Extracted frames, or Final sheet.
 - Display source grid, detected bounds, output grid, and frame numbering.
 - Show basic warnings for invalid grids, frame count mismatch, empty frames,
@@ -50,8 +54,13 @@ The app is organized as a guided 4-step workflow.
 
 - Export the processed transparent PNG.
 - Export the rebuilt spritesheet PNG when sheet building is enabled.
-- Export JSON metadata for the final image or spritesheet.
+- Choose the exported file base name from the UI.
+- Export JSON metadata for the final image or spritesheet using Generic,
+  Aseprite-like, Phaser atlas, Godot, or Unity-oriented presets.
 - Export individual frames from the rebuilt sheet.
+- Preview the ZIP package contents before export.
+- Export a ZIP package containing PNG output, frame PNGs, metadata, and GIF
+  when an animation range is available.
 - Save/load a project preset containing both chroma key and spritesheet
   settings.
 
@@ -65,11 +74,17 @@ The app is organized as a guided 4-step workflow.
 - Alpha mask inspection mode for mask debugging.
 - Deterministic source-grid spritesheet reconstruction.
 - Source frame inclusion/exclusion before sheet reconstruction.
+- Manual output frame corrections with names, order, duplicates, locks, and
+  per-frame X/Y offsets.
 - Fit modes: contain, cover, original size.
 - Anchors: center, bottom-center, top-center.
 - PNG export with strict output dimensions.
-- JSON metadata export.
+- JSON metadata export with Generic, Aseprite-like, Phaser atlas, Godot, and
+  Unity-oriented presets.
 - Individual frame export.
+- Animated GIF export from the configured animation range.
+- ZIP package export for pipeline-friendly delivery, with a visible content
+  summary before export.
 - Mask-only presets and full project presets.
 - Unit tests for chroma key, image export helpers, presets, spritesheet
   extraction, templates, and validation.
@@ -82,14 +97,14 @@ The broader roadmap is tracked in
 Short-term priorities:
 
 - Improve overlays and warnings.
-- Add richer export formats, including ZIP packaging.
-- Add an animation preview player.
-- Add frame names, ranges, and animation metadata.
+- Add richer export presets and validate them against real engine import flows.
+- Add crop/resize handles and multiple animation ranges.
 - Improve project presets and templates.
 
 Medium-term priorities:
 
-- Manual frame corrections: move, crop, resize, duplicate, delete, reorder.
+- More advanced frame corrections: manual crop, resize handles, pivots, and
+  per-frame source replacement.
 - Auto-detection by visible connected components.
 - Custom pivots and ground-line inspection.
 - Batch processing and reusable templates.
@@ -181,18 +196,31 @@ Implementation:
 
 ## Export Metadata
 
-Spritesheet metadata currently includes:
+The Export step can generate several metadata shapes:
+
+- **Generic**: stable Chroma Sprite Cutter JSON with source, sheet, frames,
+  bounds, draw rectangles, pivots, and animation range data.
+- **Aseprite-like**: `frames` plus `meta` structure with frame tags.
+- **Phaser atlas**: texture atlas JSON with frame rectangles, source sizes, and
+  pivots.
+- **Godot-oriented**: texture, hframes/vframes, frame regions, pivots, and
+  animations.
+- **Unity-oriented**: sprite mode, sprite rectangles, pivots, and animation
+  ranges.
+
+Generic spritesheet metadata includes:
 
 - source filename;
 - final PNG dimensions;
 - output grid columns/rows;
 - frame width and height;
 - fit mode and anchor;
-- one entry per frame with index, generated name, destination rectangle, source
-  cell, detected content bounds, draw rectangle, empty flag, and pivot.
+- one entry per frame with index, manual name, destination rectangle, source
+  cell, detected content bounds, draw rectangle, X/Y offset, lock state, empty
+  flag, and pivot.
 
-This is a generic JSON format intended as a base for later Aseprite, Phaser,
-Godot, Unity, or atlas-specific exports.
+The engine-oriented presets are practical JSON helpers. They are not yet
+one-click importer configuration files for each engine.
 
 ## Presets
 
@@ -200,6 +228,8 @@ Two preset formats exist:
 
 - **Mask preset**, version 1: chroma key settings only.
 - **Project preset**, version 2: chroma key settings plus spritesheet settings.
+  This includes source frame selection, manual frame corrections, and animation
+  range settings.
 
 Mask-only presets remain supported from the Clean Background step. Full project
 presets are available from the Export step.
@@ -221,12 +251,15 @@ src/
     chromaKey.worker.ts
     colorUtils.ts
     imageIO.ts
+    manualFrames.ts
     presets.ts
     spriteSheet.ts
     spriteSheetTemplates.ts
     spriteSheetValidation.ts
+    zip.ts
     zoom.ts
   types/
+    export.ts
     image.ts
     spriteSheet.ts
   App.tsx
@@ -237,10 +270,10 @@ src/
 ## Current Limitations
 
 - Auto-detection of irregular sprites is not implemented yet.
-- Manual frame correction is not implemented yet.
-- Individual frame export currently downloads separate PNGs rather than a ZIP.
-- Animation preview and animation ranges are planned but not implemented yet.
-- Advanced engine-specific metadata formats are planned but not implemented yet.
+- Manual crop, resize handles, and source replacement are not implemented yet.
+- Multiple named animation clips are not implemented yet.
+- Engine metadata presets exist, but exact importer/project-file generation is
+  not implemented yet.
 
 ## License
 

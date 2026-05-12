@@ -2,9 +2,11 @@ import type {
   Rect,
   SpriteSheetBuildResult,
   SpriteSheetFrame,
+  SpriteSheetManualFrame,
   SpriteSheetSettings,
   SpriteSheetSourceFrame,
 } from '../types/spriteSheet';
+import { getEffectiveManualFrames } from './manualFrames';
 
 export const DEFAULT_SPRITESHEET_SETTINGS: SpriteSheetSettings = {
   enabled: false,
@@ -24,6 +26,13 @@ export const DEFAULT_SPRITESHEET_SETTINGS: SpriteSheetSettings = {
   padding: 0,
   alphaThreshold: 8,
   excludedSourceFrameIndices: [],
+  animationName: 'default',
+  animationStartFrame: 1,
+  animationEndFrame: 10,
+  animationFps: 8,
+  animationLoop: true,
+  animationPingPong: false,
+  manualFrames: [],
 };
 
 export function buildSpriteSheet(
@@ -119,23 +128,38 @@ function buildFramePlanFromSourceFrames(
   settings: SpriteSheetSettings,
 ): SpriteSheetFrame[] {
   const outputCount = settings.outputColumns * settings.outputRows;
-  const includedFrames = sourceFrames.filter((frame) => frame.included);
+  const manualFrames = getEffectiveManualFrames(settings);
   const frames: SpriteSheetFrame[] = [];
 
   for (let index = 0; index < outputCount; index++) {
-    const sourceFrame = includedFrames[index];
+    const manualFrame = manualFrames[index] ?? createEmptyManualFrame(index);
+    const sourceFrame =
+      manualFrame.sourceIndex === null
+        ? undefined
+        : sourceFrames.find(
+            (frame) =>
+              frame.sourceIndex === manualFrame.sourceIndex && frame.included,
+          );
     const sourceRect =
       sourceFrame?.sourceRect ??
       ({ x: 0, y: 0, width: 0, height: 0 } satisfies Rect);
     const contentRect = sourceFrame?.contentRect ?? null;
     const destinationCell = getDestinationCell(index, settings);
     const drawRect = contentRect
-      ? getDrawRect(contentRect, destinationCell, settings)
+      ? applyManualOffset(
+          getDrawRect(contentRect, destinationCell, settings),
+          manualFrame,
+        )
       : null;
 
     frames.push({
+      id: manualFrame.id,
       index,
+      name: manualFrame.name,
       sourceIndex: sourceFrame?.sourceIndex ?? null,
+      offsetX: manualFrame.offsetX,
+      offsetY: manualFrame.offsetY,
+      locked: manualFrame.locked,
       sourceRect,
       contentRect,
       destinationCell,
@@ -145,6 +169,28 @@ function buildFramePlanFromSourceFrames(
   }
 
   return frames;
+}
+
+function createEmptyManualFrame(index: number): SpriteSheetManualFrame {
+  return {
+    id: `empty-${index}`,
+    sourceIndex: null,
+    name: `frame_${String(index + 1).padStart(3, '0')}`,
+    offsetX: 0,
+    offsetY: 0,
+    locked: false,
+  };
+}
+
+function applyManualOffset(
+  rect: Rect,
+  manualFrame: SpriteSheetManualFrame,
+): Rect {
+  return {
+    ...rect,
+    x: rect.x + manualFrame.offsetX,
+    y: rect.y + manualFrame.offsetY,
+  };
 }
 
 export function getSourceGridRects(

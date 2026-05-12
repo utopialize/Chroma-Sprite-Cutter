@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { nextAnimationFrame, previousAnimationFrame } from './animation';
+import {
+  buildPlaybackSequence,
+  getAnimationFrameRange,
+  nextAnimationFrame,
+  previousAnimationFrame,
+  selectAnimationRange,
+} from './animation';
 
 describe('animation frame helpers', () => {
   it('loops forward by default', () => {
@@ -21,5 +27,27 @@ describe('animation frame helpers', () => {
       index: 3,
       direction: -1,
     });
+  });
+
+  it('normalizes one-based animation ranges', () => {
+    expect(getAnimationFrameRange(10, 2, 5)).toEqual({
+      startIndex: 1,
+      endIndex: 4,
+    });
+    expect(selectAnimationRange(['a', 'b', 'c', 'd'], 2, 3)).toEqual([
+      'b',
+      'c',
+    ]);
+  });
+
+  it('builds a ping-pong playback sequence without duplicating endpoints', () => {
+    expect(buildPlaybackSequence([1, 2, 3, 4], true)).toEqual([
+      1,
+      2,
+      3,
+      4,
+      3,
+      2,
+    ]);
   });
 });

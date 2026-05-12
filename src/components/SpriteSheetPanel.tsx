@@ -1,6 +1,13 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, CSSProperties, ReactNode } from 'react';
 import { applyChromaKey } from '../lib/chromaKey';
+import {
+  createManualFrame,
+  duplicateManualFrame,
+  getEffectiveManualFrames,
+  initializeManualFrames,
+  syncManualFramesWithSourceSelection,
+} from '../lib/manualFrames';
 import { getSourceGridRects } from '../lib/spriteSheet';
 import { SPRITESHEET_TEMPLATES } from '../lib/spriteSheetTemplates';
 import type { ChromaKeySettings, LoadedImage } from '../types/image';
@@ -8,6 +15,7 @@ import type {
   Rect,
   SpriteSheetAnchor,
   SpriteSheetFitMode,
+  SpriteSheetManualFrame,
   SpriteSheetSettings,
 } from '../types/spriteSheet';
 import { colors, fontSize, radii, spacing } from '../theme';
@@ -215,6 +223,55 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: radii.md,
     textAlign: 'center',
   },
+  manualList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: spacing.xs,
+    maxHeight: 180,
+    overflowY: 'auto',
+    paddingRight: 2,
+  },
+  manualItem: {
+    display: 'grid',
+    gridTemplateColumns: '28px minmax(0, 1fr) auto',
+    alignItems: 'center',
+    gap: spacing.sm,
+    width: '100%',
+    padding: '7px 8px',
+    border: `1px solid ${colors.borderInput}`,
+    borderRadius: radii.sm,
+    backgroundColor: colors.bgInput,
+    color: colors.textSecondary,
+    cursor: 'pointer',
+    textAlign: 'left',
+    fontSize: fontSize.xs,
+  },
+  manualItemActive: {
+    borderColor: colors.accentHi,
+    boxShadow: `inset 0 0 0 1px ${colors.accent}`,
+  },
+  manualIndex: {
+    color: colors.textFaint,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  manualName: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  manualMeta: {
+    color: colors.textDim,
+    fontSize: fontSize.xxs,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  actionGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: spacing.sm,
+  },
+  fullWidth: {
+    gridColumn: '1 / -1',
+  },
 };
 
 export function SpriteSheetPanel({
@@ -223,6 +280,13 @@ export function SpriteSheetPanel({
   image = null,
   chromaSettings,
 }: SpriteSheetPanelProps) {
+  const [selectedManualFrameId, setSelectedManualFrameId] = useState<
+    string | null
+  >(null);
+  const undoStack = useRef<SpriteSheetSettings[]>([]);
+  const redoStack = useRef<SpriteSheetSettings[]>([]);
+  const [historyVersion, setHistoryVersion] = useState(0);
+
   const update = <K extends keyof SpriteSheetSettings>(
     key: K,
     value: SpriteSheetSettings[K],
@@ -238,13 +302,44 @@ export function SpriteSheetPanel({
       update(key, Math.max(min, Math.min(max, Math.round(value))));
     };
 
+  const updateText =
+    (key: TextKey) => (event: ChangeEvent<HTMLInputElement>) => {
+      update(key, event.target.value);
+    };
+
   const contentStyle: CSSProperties = settings.enabled ? {} : styles.disabled;
   const sourceFrameCount = settings.sourceColumns * settings.sourceRows;
   const excluded = new Set(settings.excludedSourceFrameIndices);
   const includedCount = Math.max(0, sourceFrameCount - excluded.size);
+  const manualFrames = getEffectiveManualFrames(settings);
+  const selectedManualIndex = manualFrames.findIndex(
+    (frame) => frame.id === selectedManualFrameId,
+  );
+  const selectedManualFrame =
+    selectedManualIndex >= 0 ? manualFrames[selectedManualIndex] : null;
+
+  useEffect(() => {
+    if (manualFrames.length === 0) {
+      setSelectedManualFrameId(null);
+      return;
+    }
+    if (!selectedManualFrameId || selectedManualIndex === -1) {
+      setSelectedManualFrameId(manualFrames[0].id);
+    }
+  }, [manualFrames, selectedManualFrameId, selectedManualIndex]);
 
   const setExcludedFrames = (excludedSourceFrameIndices: number[]) => {
-    onChange({ ...settings, excludedSourceFrameIndices });
+    onChange({
+      ...settings,
+      excludedSourceFrameIndices,
+      manualFrames:
+        settings.manualFrames.length > 0
+          ? syncManualFramesWithSourceSelection(
+              settings,
+              excludedSourceFrameIndices,
+            )
+          : settings.manualFrames,
+    });
   };
 
   const toggleSourceFrame = (sourceIndex: number) => {
@@ -253,6 +348,93 @@ export function SpriteSheetPanel({
     else next.add(sourceIndex);
     setExcludedFrames([...next].sort((a, b) => a - b));
   };
+
+  const commitManualSettings = (next: SpriteSheetSettings) => {
+    undoStack.current.push(settings);
+    redoStack.current = [];
+    setHistoryVersion((value) => value + 1);
+    onChange(next);
+  };
+
+  const commitManualFrames = (frames: SpriteSheetManualFrame[]) => {
+    commitManualSettings({
+      ...initializeManualFrames(settings),
+      manualFrames: frames,
+    });
+  };
+
+  const updateManualFrame = (
+    id: string,
+    patch: Partial<SpriteSheetManualFrame>,
+  ) => {
+    const frames = getEffectiveManualFrames(settings).map((frame) =>
+      frame.id === id && !frame.locked ? { ...frame, ...patch } : frame,
+    );
+    commitManualFrames(frames);
+  };
+
+  const moveManualFrame = (fromIndex: number, direction: -1 | 1) => {
+    const toIndex = fromIndex + direction;
+    if (toIndex < 0 || toIndex >= manualFrames.length) return;
+    const current = manualFrames[fromIndex];
+    const target = manualFrames[toIndex];
+    if (current.locked || target.locked) return;
+    const frames = [...manualFrames];
+    frames[fromIndex] = target;
+    frames[toIndex] = current;
+    commitManualFrames(frames);
+    setSelectedManualFrameId(current.id);
+  };
+
+  const duplicateSelectedFrame = () => {
+    if (!selectedManualFrame || selectedManualFrame.locked) return;
+    const frames = [...manualFrames];
+    const duplicate = duplicateManualFrame(selectedManualFrame);
+    frames.splice(selectedManualIndex + 1, 0, duplicate);
+    commitManualFrames(frames);
+    setSelectedManualFrameId(duplicate.id);
+  };
+
+  const deleteSelectedFrame = () => {
+    if (!selectedManualFrame || selectedManualFrame.locked) return;
+    const frames = manualFrames.filter(
+      (frame) => frame.id !== selectedManualFrame.id,
+    );
+    const nextFrames = frames.length > 0 ? frames : [createManualFrame(null, 0)];
+    commitManualFrames(nextFrames);
+    setSelectedManualFrameId(
+      nextFrames[Math.min(selectedManualIndex, nextFrames.length - 1)]?.id ??
+        null,
+    );
+  };
+
+  const toggleSelectedLock = () => {
+    if (!selectedManualFrame) return;
+    const frames = manualFrames.map((frame) =>
+      frame.id === selectedManualFrame.id
+        ? { ...frame, locked: !frame.locked }
+        : frame,
+    );
+    commitManualFrames(frames);
+  };
+
+  const undoManualAction = () => {
+    const previous = undoStack.current.pop();
+    if (!previous) return;
+    redoStack.current.push(settings);
+    setHistoryVersion((value) => value + 1);
+    onChange(previous);
+  };
+
+  const redoManualAction = () => {
+    const next = redoStack.current.pop();
+    if (!next) return;
+    undoStack.current.push(settings);
+    setHistoryVersion((value) => value + 1);
+    onChange(next);
+  };
+
+  void historyVersion;
 
   const processedCanvas = useMemo(() => {
     if (!image || !chromaSettings) return null;
@@ -313,6 +495,10 @@ export function SpriteSheetPanel({
                   ...settings,
                   ...template.settings,
                   excludedSourceFrameIndices: [],
+                  manualFrames: [],
+                  animationStartFrame: 1,
+                  animationEndFrame:
+                    template.settings.outputColumns * template.settings.outputRows,
                 })
               }
             >
@@ -405,6 +591,162 @@ export function SpriteSheetPanel({
         ) : (
           <div style={styles.frameTileEmptyState}>
             Load a PNG to preview frames.
+          </div>
+        )}
+      </div>
+
+      <div style={contentStyle}>
+        <span style={styles.section}>Manual corrections</span>
+        <div style={styles.frameToolbar}>
+          <span style={styles.frameCount}>
+            {manualFrames.length} ordered frame{manualFrames.length === 1 ? '' : 's'}
+          </span>
+          <button
+            type="button"
+            disabled={!settings.enabled || undoStack.current.length === 0}
+            style={{
+              ...styles.compactButton,
+              ...(!settings.enabled || undoStack.current.length === 0
+                ? styles.modeButtonDisabled
+                : {}),
+            }}
+            onClick={undoManualAction}
+          >
+            Undo
+          </button>
+          <button
+            type="button"
+            disabled={!settings.enabled || redoStack.current.length === 0}
+            style={{
+              ...styles.compactButton,
+              ...(!settings.enabled || redoStack.current.length === 0
+                ? styles.modeButtonDisabled
+                : {}),
+            }}
+            onClick={redoManualAction}
+          >
+            Redo
+          </button>
+        </div>
+        <div style={styles.manualList}>
+          {manualFrames.map((frame, index) => (
+            <button
+              key={frame.id}
+              type="button"
+              disabled={!settings.enabled}
+              style={{
+                ...styles.manualItem,
+                ...(frame.id === selectedManualFrameId
+                  ? styles.manualItemActive
+                  : {}),
+                ...(!settings.enabled ? styles.modeButtonDisabled : {}),
+              }}
+              onClick={() => setSelectedManualFrameId(frame.id)}
+            >
+              <span style={styles.manualIndex}>{index + 1}</span>
+              <span style={styles.manualName}>{frame.name}</span>
+              <span style={styles.manualMeta}>
+                {frame.locked ? 'Locked' : `Src ${frame.sourceIndex === null ? '-' : frame.sourceIndex + 1}`}
+              </span>
+            </button>
+          ))}
+        </div>
+        {selectedManualFrame ? (
+          <>
+            <label style={styles.field}>
+              <span style={styles.label}>Frame name</span>
+              <input
+                type="text"
+                value={selectedManualFrame.name}
+                disabled={!settings.enabled || selectedManualFrame.locked}
+                onChange={(event) =>
+                  updateManualFrame(selectedManualFrame.id, {
+                    name: event.target.value || selectedManualFrame.name,
+                  })
+                }
+                style={styles.input}
+              />
+            </label>
+            <div style={styles.grid}>
+              <NumberField
+                label="Offset X"
+                min={-4096}
+                max={4096}
+                value={selectedManualFrame.offsetX}
+                disabled={!settings.enabled || selectedManualFrame.locked}
+                onChange={(event) =>
+                  updateManualFrame(selectedManualFrame.id, {
+                    offsetX: clampNumberInput(event.target.value, -4096, 4096),
+                  })
+                }
+              />
+              <NumberField
+                label="Offset Y"
+                min={-4096}
+                max={4096}
+                value={selectedManualFrame.offsetY}
+                disabled={!settings.enabled || selectedManualFrame.locked}
+                onChange={(event) =>
+                  updateManualFrame(selectedManualFrame.id, {
+                    offsetY: clampNumberInput(event.target.value, -4096, 4096),
+                  })
+                }
+              />
+            </div>
+            <div style={styles.actionGrid}>
+              <button
+                type="button"
+                disabled={
+                  !settings.enabled ||
+                  selectedManualFrame.locked ||
+                  selectedManualIndex <= 0
+                }
+                style={styles.compactButton}
+                onClick={() => moveManualFrame(selectedManualIndex, -1)}
+              >
+                Up
+              </button>
+              <button
+                type="button"
+                disabled={
+                  !settings.enabled ||
+                  selectedManualFrame.locked ||
+                  selectedManualIndex >= manualFrames.length - 1
+                }
+                style={styles.compactButton}
+                onClick={() => moveManualFrame(selectedManualIndex, 1)}
+              >
+                Down
+              </button>
+              <button
+                type="button"
+                disabled={!settings.enabled || selectedManualFrame.locked}
+                style={styles.compactButton}
+                onClick={duplicateSelectedFrame}
+              >
+                Duplicate
+              </button>
+              <button
+                type="button"
+                disabled={!settings.enabled || selectedManualFrame.locked}
+                style={styles.compactButton}
+                onClick={deleteSelectedFrame}
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                disabled={!settings.enabled}
+                style={styles.compactButton}
+                onClick={toggleSelectedLock}
+              >
+                {selectedManualFrame.locked ? 'Unlock' : 'Lock'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div style={styles.frameTileEmptyState}>
+            Include at least one frame to edit the output order.
           </div>
         )}
       </div>
@@ -541,6 +883,68 @@ export function SpriteSheetPanel({
         </div>
       </div>
 
+      <div style={contentStyle}>
+        <span style={styles.section}>Animation</span>
+        <div style={styles.grid}>
+          <label style={{ ...styles.field, ...styles.fullWidth }}>
+            <span style={styles.label}>Name</span>
+            <input
+              type="text"
+              value={settings.animationName}
+              disabled={!settings.enabled}
+              onChange={updateText('animationName')}
+              style={styles.input}
+            />
+          </label>
+          <NumberField
+            label="Start"
+            min={1}
+            max={sourceFrameCount}
+            value={settings.animationStartFrame}
+            disabled={!settings.enabled}
+            onChange={updateNumber('animationStartFrame', 1, sourceFrameCount)}
+          />
+          <NumberField
+            label="End"
+            min={1}
+            max={sourceFrameCount}
+            value={settings.animationEndFrame}
+            disabled={!settings.enabled}
+            onChange={updateNumber('animationEndFrame', 1, sourceFrameCount)}
+          />
+          <NumberField
+            label="FPS"
+            min={1}
+            max={60}
+            value={settings.animationFps}
+            disabled={!settings.enabled}
+            onChange={updateNumber('animationFps', 1, 60)}
+          />
+          <label style={styles.toggleRow}>
+            <span>Loop</span>
+            <input
+              type="checkbox"
+              checked={settings.animationLoop}
+              disabled={!settings.enabled}
+              onChange={(event) => update('animationLoop', event.target.checked)}
+              style={styles.checkbox}
+            />
+          </label>
+          <label style={styles.toggleRow}>
+            <span>Ping-pong</span>
+            <input
+              type="checkbox"
+              checked={settings.animationPingPong}
+              disabled={!settings.enabled}
+              onChange={(event) =>
+                update('animationPingPong', event.target.checked)
+              }
+              style={styles.checkbox}
+            />
+          </label>
+        </div>
+      </div>
+
       <span style={styles.help}>
         Processed preview and export use the rebuilt sheet while this mode is
         enabled.
@@ -669,6 +1073,12 @@ type NumberKey = {
     : never;
 }[keyof SpriteSheetSettings];
 
+type TextKey = {
+  [K in keyof SpriteSheetSettings]: SpriteSheetSettings[K] extends string
+    ? K
+    : never;
+}[keyof SpriteSheetSettings];
+
 interface NumberFieldProps {
   label: string;
   min: number;
@@ -730,4 +1140,10 @@ function SelectField({
       </select>
     </label>
   );
+}
+
+function clampNumberInput(value: string, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return min;
+  return Math.max(min, Math.min(max, Math.round(parsed)));
 }
