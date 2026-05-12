@@ -190,8 +190,13 @@ function makeResult(sourceIndices: Array<number | null>): SpriteSheetBuildResult
     height: 1,
     sourceFrames: [],
     frames: sourceIndices.map((sourceIndex, index) => ({
+      id: `frame-${index}`,
       index,
+      name: `frame_${String(index + 1).padStart(3, '0')}`,
       sourceIndex,
+      offsetX: 0,
+      offsetY: 0,
+      locked: false,
       empty: sourceIndex === null,
       sourceRect: { x: 0, y: 0, width: 1, height: 1 },
       contentRect: sourceIndex === null ? null : { x: 0, y: 0, width: 1, height: 1 },

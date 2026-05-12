@@ -35,11 +35,26 @@ export interface SpriteSheetSettings {
   animationFps: number;
   animationLoop: boolean;
   animationPingPong: boolean;
+  manualFrames: SpriteSheetManualFrame[];
+}
+
+export interface SpriteSheetManualFrame {
+  id: string;
+  sourceIndex: number | null;
+  name: string;
+  offsetX: number;
+  offsetY: number;
+  locked: boolean;
 }
 
 export interface SpriteSheetFrame {
+  id: string;
   index: number;
+  name: string;
   sourceIndex: number | null;
+  offsetX: number;
+  offsetY: number;
+  locked: boolean;
   sourceRect: Rect;
   contentRect: Rect | null;
   destinationCell: Rect;

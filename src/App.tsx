@@ -11,6 +11,7 @@ import { ProjectPresetPanel } from './components/ProjectPresetPanel';
 import { SpriteSheetPanel } from './components/SpriteSheetPanel';
 import { APP_VERSION, REPO_URL } from './changelog';
 import { autoDetectKeyColor } from './lib/colorUtils';
+import { getEffectiveManualFrames } from './lib/manualFrames';
 import { DEFAULT_SPRITESHEET_SETTINGS } from './lib/spriteSheet';
 import { validateSpriteSheetSettings } from './lib/spriteSheetValidation';
 import { formatZoom, stepZoom } from './lib/zoom';
@@ -513,7 +514,7 @@ export default function App() {
     ? spriteSheetSettings.outputRows * spriteSheetSettings.frameHeight
     : image?.height ?? 0;
   const outputFrames = spriteSheetSettings.enabled
-    ? spriteSheetSettings.outputColumns * spriteSheetSettings.outputRows
+    ? getEffectiveManualFrames(spriteSheetSettings).length
     : 1;
   const diagnostics = validateSpriteSheetSettings(image, spriteSheetSettings);
 

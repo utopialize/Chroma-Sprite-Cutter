@@ -98,6 +98,33 @@ describe('serializeProjectPreset / parseProjectPreset', () => {
     expect(parsed.spriteSheet.animationPingPong).toBe(true);
   });
 
+  it('round-trips manual frame corrections', () => {
+    const json = serializeProjectPreset(SETTINGS, {
+      ...DEFAULT_SPRITESHEET_SETTINGS,
+      manualFrames: [
+        {
+          id: 'manual-1',
+          sourceIndex: 2,
+          name: 'attack_01',
+          offsetX: 4,
+          offsetY: -2,
+          locked: true,
+        },
+      ],
+    });
+    const parsed = parseProjectPreset(json);
+    expect(parsed.spriteSheet.manualFrames).toEqual([
+      {
+        id: 'manual-1',
+        sourceIndex: 2,
+        name: 'attack_01',
+        offsetX: 4,
+        offsetY: -2,
+        locked: true,
+      },
+    ]);
+  });
+
   it('does not accept mask-only presets as project presets', () => {
     const json = serializePreset(SETTINGS);
     expect(() => parseProjectPreset(json)).toThrow(/mask-only/);

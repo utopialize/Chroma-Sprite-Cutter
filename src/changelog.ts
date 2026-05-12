@@ -4,11 +4,20 @@ export interface ChangelogEntry {
   highlights: string[];
 }
 
-export const APP_VERSION = '0.1.8';
+export const APP_VERSION = '0.1.9';
 
 export const REPO_URL = 'https://github.com/utopialize/Chroma-Sprite-Cutter';
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.1.9',
+    date: '2026-05-12',
+    highlights: [
+      'Manual frame corrections in the Build step: rename, reorder, duplicate, delete, lock, and X/Y offsets.',
+      'Simple undo and redo stack for manual frame correction actions.',
+      'Manual frame names, offsets, locks, and order now drive PNG, frame, GIF, metadata, and ZIP exports.',
+    ],
+  },
   {
     version: '0.1.8',
     date: '2026-05-12',

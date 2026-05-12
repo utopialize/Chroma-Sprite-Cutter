@@ -124,4 +124,78 @@ describe('buildFramePlan', () => {
     expect(frames[1].sourceIndex).toBe(2);
     expect(frames[2].sourceIndex).toBeNull();
   });
+
+  it('uses manual frame order and names', () => {
+    const image = makeImage(12, 4);
+    setAlpha(image, 1, 1, 255);
+    setAlpha(image, 5, 1, 255);
+    setAlpha(image, 9, 1, 255);
+
+    const frames = buildFramePlan(image, {
+      ...DEFAULT_SPRITESHEET_SETTINGS,
+      enabled: true,
+      sourceColumns: 3,
+      sourceRows: 1,
+      outputColumns: 3,
+      outputRows: 1,
+      frameWidth: 4,
+      frameHeight: 4,
+      manualFrames: [
+        {
+          id: 'custom-2',
+          sourceIndex: 2,
+          name: 'attack',
+          offsetX: 0,
+          offsetY: 0,
+          locked: false,
+        },
+        {
+          id: 'custom-0',
+          sourceIndex: 0,
+          name: 'idle',
+          offsetX: 0,
+          offsetY: 0,
+          locked: true,
+        },
+      ],
+    });
+
+    expect(frames[0].sourceIndex).toBe(2);
+    expect(frames[0].name).toBe('attack');
+    expect(frames[1].sourceIndex).toBe(0);
+    expect(frames[1].locked).toBe(true);
+    expect(frames[2].sourceIndex).toBeNull();
+  });
+
+  it('applies manual frame offsets to draw rectangles', () => {
+    const image = makeImage(4, 4);
+    setAlpha(image, 0, 0, 255);
+    setAlpha(image, 1, 1, 255);
+
+    const [frame] = buildFramePlan(image, {
+      ...DEFAULT_SPRITESHEET_SETTINGS,
+      enabled: true,
+      sourceColumns: 1,
+      sourceRows: 1,
+      outputColumns: 1,
+      outputRows: 1,
+      frameWidth: 8,
+      frameHeight: 8,
+      fitMode: 'contain',
+      anchor: 'bottom-center',
+      padding: 1,
+      manualFrames: [
+        {
+          id: 'offset',
+          sourceIndex: 0,
+          name: 'shifted',
+          offsetX: 2,
+          offsetY: -1,
+          locked: false,
+        },
+      ],
+    });
+
+    expect(frame.drawRect).toEqual({ x: 3, y: 0, width: 6, height: 6 });
+  });
 });

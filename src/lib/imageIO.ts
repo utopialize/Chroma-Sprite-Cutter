@@ -1,6 +1,7 @@
 import { applyChromaKey } from './chromaKey';
 import { GifEncoder } from './gifEncoder';
 import { buildPlaybackSequence, selectAnimationRange } from './animation';
+import { getEffectiveManualFrames } from './manualFrames';
 import { buildSpriteSheet } from './spriteSheet';
 import { createZip } from './zip';
 import type {
@@ -309,11 +310,7 @@ export function buildZipContentSummary(
   ];
 
   if (settings.enabled) {
-    const sourceCells = settings.sourceColumns * settings.sourceRows;
-    const included = Math.max(
-      0,
-      sourceCells - settings.excludedSourceFrameIndices.length,
-    );
+    const included = getEffectiveManualFrames(settings).length;
     entries.push({
       name: 'frames/frame_###.png',
       detail: `Up to ${included} individual frame PNG${included === 1 ? '' : 's'}`,
@@ -470,8 +467,10 @@ function buildGenericSpriteSheetMetadata(
     frames: result.frames.map((frame) => ({
       index: frame.index,
       sourceIndex: frame.sourceIndex,
-      name: `frame_${String(frame.index + 1).padStart(3, '0')}`,
+      name: frame.name,
       empty: frame.empty,
+      offset: { x: frame.offsetX, y: frame.offsetY },
+      locked: frame.locked,
       frame: frame.destinationCell,
       source: frame.sourceRect,
       content: frame.contentRect,
@@ -489,7 +488,7 @@ function buildAsepriteMetadata(
 ) {
   const frames = Object.fromEntries(
     result.frames.map((frame) => {
-      const name = getFrameFileName(frame.index);
+      const name = `${frame.name}.png`;
       return [
         name,
         {
@@ -543,7 +542,7 @@ function buildPhaserMetadata(
         size: { w: result.width, h: result.height },
         scale: 1,
         frames: result.frames.map((frame) => ({
-          filename: getFrameFileName(frame.index),
+          filename: `${frame.name}.png`,
           frame: toPhaserRect(frame.destinationCell),
           rotated: false,
           trimmed: false,
@@ -577,7 +576,7 @@ function buildGodotMetadata(
     frameSize: { width: settings.frameWidth, height: settings.frameHeight },
     pivot: getPivot(settings),
     frames: result.frames.map((frame) => ({
-      name: getFrameName(frame.index),
+      name: frame.name,
       index: frame.index,
       region: frame.destinationCell,
       empty: frame.empty,
@@ -599,7 +598,7 @@ function buildUnityMetadata(
     spriteMode: 'Multiple',
     pixelsPerUnit: settings.frameHeight,
     sprites: result.frames.map((frame) => ({
-      name: getFrameName(frame.index),
+      name: frame.name,
       rect: frame.destinationCell,
       pivot: getPivot(settings),
       alignment: 'Custom',
@@ -639,14 +638,6 @@ function getExportStem(
   return options.fileBaseName
     ? sanitizeFileBaseName(options.fileBaseName)
     : sanitizeFileBaseName(sourceName);
-}
-
-function getFrameName(index: number): string {
-  return `frame_${String(index + 1).padStart(3, '0')}`;
-}
-
-function getFrameFileName(index: number): string {
-  return `${getFrameName(index)}.png`;
 }
 
 function emptyRect(): { x: number; y: number; width: number; height: number } {
@@ -734,7 +725,7 @@ async function renderFramePngs(
     );
     const index = String(frame.index + 1).padStart(3, '0');
     output.push({
-      name: `frame_${index}`,
+      name: frame.name || `frame_${index}`,
       blob: await canvasToPngBlob(frameCanvas),
     });
   }

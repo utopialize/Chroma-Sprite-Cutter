@@ -41,6 +41,9 @@ The app is organized as a guided 4-step workflow.
   and `RPG walk`.
 - Select which source frames are included in the rebuilt sheet, with excluded
   frames removed and the remaining frames compacted in order.
+- Apply manual corrections to output frames: rename, reorder, duplicate, delete,
+  lock, and adjust X/Y offsets.
+- Undo and redo manual frame correction actions.
 - Configure a named animation range with FPS, loop, and ping-pong playback.
 - Preview the result as Source overlay, Extracted frames, or Final sheet.
 - Display source grid, detected bounds, output grid, and frame numbering.
@@ -71,6 +74,8 @@ The app is organized as a guided 4-step workflow.
 - Alpha mask inspection mode for mask debugging.
 - Deterministic source-grid spritesheet reconstruction.
 - Source frame inclusion/exclusion before sheet reconstruction.
+- Manual output frame corrections with names, order, duplicates, locks, and
+  per-frame X/Y offsets.
 - Fit modes: contain, cover, original size.
 - Anchors: center, bottom-center, top-center.
 - PNG export with strict output dimensions.
@@ -93,12 +98,13 @@ Short-term priorities:
 
 - Improve overlays and warnings.
 - Add richer export presets and validate them against real engine import flows.
-- Add frame names and multiple animation ranges.
+- Add crop/resize handles and multiple animation ranges.
 - Improve project presets and templates.
 
 Medium-term priorities:
 
-- Manual frame corrections: move, crop, resize, duplicate, delete, reorder.
+- More advanced frame corrections: manual crop, resize handles, pivots, and
+  per-frame source replacement.
 - Auto-detection by visible connected components.
 - Custom pivots and ground-line inspection.
 - Batch processing and reusable templates.
@@ -209,8 +215,9 @@ Generic spritesheet metadata includes:
 - output grid columns/rows;
 - frame width and height;
 - fit mode and anchor;
-- one entry per frame with index, generated name, destination rectangle, source
-  cell, detected content bounds, draw rectangle, empty flag, and pivot.
+- one entry per frame with index, manual name, destination rectangle, source
+  cell, detected content bounds, draw rectangle, X/Y offset, lock state, empty
+  flag, and pivot.
 
 The engine-oriented presets are practical JSON helpers. They are not yet
 one-click importer configuration files for each engine.
@@ -221,7 +228,8 @@ Two preset formats exist:
 
 - **Mask preset**, version 1: chroma key settings only.
 - **Project preset**, version 2: chroma key settings plus spritesheet settings.
-  This includes source frame selection and animation range settings.
+  This includes source frame selection, manual frame corrections, and animation
+  range settings.
 
 Mask-only presets remain supported from the Clean Background step. Full project
 presets are available from the Export step.
@@ -243,6 +251,7 @@ src/
     chromaKey.worker.ts
     colorUtils.ts
     imageIO.ts
+    manualFrames.ts
     presets.ts
     spriteSheet.ts
     spriteSheetTemplates.ts
@@ -261,7 +270,7 @@ src/
 ## Current Limitations
 
 - Auto-detection of irregular sprites is not implemented yet.
-- Manual frame correction is not implemented yet.
+- Manual crop, resize handles, and source replacement are not implemented yet.
 - Multiple named animation clips are not implemented yet.
 - Engine metadata presets exist, but exact importer/project-file generation is
   not implemented yet.

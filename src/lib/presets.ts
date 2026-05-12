@@ -142,6 +142,7 @@ function isSpriteSheetSettings(value: unknown): value is SpriteSheetSettings {
     isFiniteNumber(obj.alphaThreshold) &&
     (obj.excludedSourceFrameIndices === undefined ||
       isNumberArray(obj.excludedSourceFrameIndices)) &&
+    (obj.manualFrames === undefined || isManualFrameArray(obj.manualFrames)) &&
     (obj.animationName === undefined || typeof obj.animationName === 'string') &&
     (obj.animationStartFrame === undefined ||
       isFiniteNumber(obj.animationStartFrame)) &&
@@ -162,6 +163,24 @@ function isNumberArray(value: unknown): value is number[] {
   );
 }
 
+function isManualFrameArray(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every((item) => {
+      if (!item || typeof item !== 'object') return false;
+      const obj = item as Record<string, unknown>;
+      return (
+        typeof obj.id === 'string' &&
+        (typeof obj.sourceIndex === 'number' || obj.sourceIndex === null) &&
+        typeof obj.name === 'string' &&
+        isFiniteNumber(obj.offsetX) &&
+        isFiniteNumber(obj.offsetY) &&
+        typeof obj.locked === 'boolean'
+      );
+    })
+  );
+}
+
 function normalizeSpriteSheetSettings(
   settings: SpriteSheetSettings,
 ): SpriteSheetSettings {
@@ -176,6 +195,7 @@ function normalizeSpriteSheetSettings(
     animationFps: settings.animationFps ?? 8,
     animationLoop: settings.animationLoop ?? true,
     animationPingPong: settings.animationPingPong ?? false,
+    manualFrames: settings.manualFrames ?? [],
   };
 }
 
