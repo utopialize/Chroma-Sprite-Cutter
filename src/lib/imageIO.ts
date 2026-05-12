@@ -1,4 +1,5 @@
 import { applyChromaKey } from './chromaKey';
+import { GifEncoder } from './gifEncoder';
 import { buildSpriteSheet } from './spriteSheet';
 import type { ChromaKeySettings, LoadedImage } from '../types/image';
 import type {
@@ -97,10 +98,87 @@ export async function exportIndividualFrames(
   }
 }
 
+export interface AnimationGifOptions {
+  fps: number;
+  alphaThreshold?: number;
+  loop?: number;
+}
+
+export async function exportAnimationGif(
+  image: LoadedImage,
+  settings: ChromaKeySettings,
+  spriteSheetSettings: SpriteSheetSettings,
+  options: AnimationGifOptions,
+): Promise<void> {
+  if (!spriteSheetSettings.enabled) {
+    throw new Error('GIF export requires Sprite Sheet Builder to be enabled');
+  }
+  const { result } = renderExportImage(image, settings, spriteSheetSettings);
+  if (!result) throw new Error('Failed to build sprite sheet');
+
+  const animationFrames = result.frames.filter(
+    (frame) => frame.sourceIndex !== null,
+  );
+  if (animationFrames.length === 0) {
+    throw new Error('No frames available for animation');
+  }
+
+  const frameWidth = spriteSheetSettings.frameWidth;
+  const frameHeight = spriteSheetSettings.frameHeight;
+
+  const sheetCanvas = document.createElement('canvas');
+  sheetCanvas.width = result.width;
+  sheetCanvas.height = result.height;
+  const sheetCtx = sheetCanvas.getContext('2d');
+  if (!sheetCtx) throw new Error('Cannot obtain 2D context');
+  sheetCtx.putImageData(result.imageData, 0, 0);
+
+  const frameCanvas = document.createElement('canvas');
+  frameCanvas.width = frameWidth;
+  frameCanvas.height = frameHeight;
+  const frameCtx = frameCanvas.getContext('2d', { willReadFrequently: true });
+  if (!frameCtx) throw new Error('Cannot obtain 2D context');
+  frameCtx.imageSmoothingEnabled = false;
+
+  const fps = Math.max(1, Math.min(60, Math.round(options.fps)));
+  const delayCs = Math.max(2, Math.round(100 / fps));
+  const alphaThreshold = options.alphaThreshold ?? 128;
+  const loop = options.loop ?? 0;
+
+  const encoder = new GifEncoder(frameWidth, frameHeight, loop);
+  for (const frame of animationFrames) {
+    frameCtx.clearRect(0, 0, frameWidth, frameHeight);
+    frameCtx.drawImage(
+      sheetCanvas,
+      frame.destinationCell.x,
+      frame.destinationCell.y,
+      frame.destinationCell.width,
+      frame.destinationCell.height,
+      0,
+      0,
+      frameWidth,
+      frameHeight,
+    );
+    const data = frameCtx.getImageData(0, 0, frameWidth, frameHeight);
+    encoder.addFrame({ imageData: data, delayCs, alphaThreshold });
+  }
+
+  const bytes = encoder.finalize();
+  const blob = new Blob([bytes as BlobPart], { type: 'image/gif' });
+  triggerDownload(blob, buildAnimationGifExportName(image.name, fps));
+}
+
 export function buildExportName(sourceName: string): string {
   const dot = sourceName.lastIndexOf('.');
   const stem = dot === -1 ? sourceName : sourceName.slice(0, dot);
   return `${stem}_transparent.png`;
+}
+
+export function buildAnimationGifExportName(
+  sourceName: string,
+  fps: number,
+): string {
+  return `${getStem(sourceName)}_animation_${fps}fps.gif`;
 }
 
 export function buildSpriteSheetExportName(

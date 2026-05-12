@@ -244,5 +244,13 @@ src/
 
 ## License
 
-No license is set yet. Treat this as personal-use code unless a license is
-added.
+Released under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+You may use, copy, modify, and share the software for any noncommercial
+purpose: personal projects, learning, research, hobby work, and use by
+charitable, educational, public research, public safety, environmental, or
+governmental organizations.
+
+Commercial use is not permitted. If you want to use Chroma Sprite Cutter in a
+commercial context, open an issue on the repository to discuss a separate
+arrangement.
