@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import {
   exportAnimationGif,
   exportIndividualFrames,
+  exportProjectZip,
   exportSpriteSheetMetadata,
   exportTransparentPng,
 } from '../lib/imageIO';
@@ -61,43 +62,10 @@ const styles: Record<string, CSSProperties> = {
     fontSize: fontSize.xxs,
     color: colors.danger,
   },
-  gifRow: {
-    display: 'flex',
-    alignItems: 'stretch',
-    gap: spacing.md,
-  },
-  gifButton: {
-    flex: 1,
-    padding: '9px 12px',
-    backgroundColor: colors.bgInput,
-    color: colors.textSecondary,
-    border: `1px solid ${colors.borderInput}`,
-    borderRadius: radii.md,
-    cursor: 'pointer',
-    fontSize: fontSize.xs,
-    fontWeight: 600,
-  },
-  fpsField: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: spacing.xs,
-    padding: `0 ${spacing.md}px`,
-    border: `1px solid ${colors.borderInput}`,
-    borderRadius: radii.md,
-    backgroundColor: colors.bgInput,
-    color: colors.textMuted,
+  hint: {
+    color: colors.textDim,
     fontSize: fontSize.xxs,
-  },
-  fpsInput: {
-    width: 44,
-    padding: '6px 4px',
-    border: 'none',
-    backgroundColor: 'transparent',
-    color: colors.textPrimary,
-    fontSize: fontSize.xs,
-    textAlign: 'right',
-    fontVariantNumeric: 'tabular-nums',
-    outline: 'none',
+    lineHeight: 1.4,
   },
 };
 
@@ -108,7 +76,6 @@ export function ExportPanel({
 }: ExportPanelProps) {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [gifFps, setGifFps] = useState(8);
 
   const disabled = !image || busyAction !== null;
   const buttonStyle: CSSProperties = {
@@ -187,47 +154,37 @@ export function ExportPanel({
         </button>
       )}
       {spriteSheetSettings.enabled && (
-        <div style={styles.gifRow}>
-          <button
-            type="button"
-            disabled={disabled}
-            style={{
-              ...styles.gifButton,
-              ...(disabled ? styles.buttonDisabled : {}),
-            }}
-            onClick={() =>
-              void runExport('gif', (loadedImage) =>
-                exportAnimationGif(
-                  loadedImage,
-                  settings,
-                  spriteSheetSettings,
-                  { fps: gifFps },
-                ),
-              )
-            }
-          >
-            {busyAction === 'gif'
-              ? 'Encoding GIF...'
-              : 'Export animation GIF'}
-          </button>
-          <label style={styles.fpsField} title="Frames per second">
-            <span>FPS</span>
-            <input
-              type="number"
-              min={1}
-              max={60}
-              value={gifFps}
-              disabled={busyAction !== null}
-              onChange={(event) => {
-                const next = Number(event.target.value);
-                if (Number.isFinite(next)) {
-                  setGifFps(Math.max(1, Math.min(60, Math.round(next))));
-                }
-              }}
-              style={styles.fpsInput}
-            />
-          </label>
-        </div>
+        <button
+          type="button"
+          disabled={disabled}
+          style={secondaryButtonStyle}
+          onClick={() =>
+            void runExport('gif', (loadedImage) =>
+              exportAnimationGif(loadedImage, settings, spriteSheetSettings, {}),
+            )
+          }
+        >
+          {busyAction === 'gif' ? 'Encoding GIF...' : 'Export animation GIF'}
+        </button>
+      )}
+      <button
+        type="button"
+        disabled={disabled}
+        style={secondaryButtonStyle}
+        onClick={() =>
+          void runExport('zip', (loadedImage) =>
+            exportProjectZip(loadedImage, settings, spriteSheetSettings),
+          )
+        }
+      >
+        {busyAction === 'zip' ? 'Packaging ZIP...' : 'Export ZIP package'}
+      </button>
+      {spriteSheetSettings.enabled && (
+        <span style={styles.hint}>
+          GIF uses the Build step animation settings: {spriteSheetSettings.animationName},
+          {' '}
+          {spriteSheetSettings.animationFps} FPS.
+        </span>
       )}
       {error && <span style={styles.error}>{error}</span>}
     </div>

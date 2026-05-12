@@ -24,6 +24,12 @@ export const DEFAULT_SPRITESHEET_SETTINGS: SpriteSheetSettings = {
   padding: 0,
   alphaThreshold: 8,
   excludedSourceFrameIndices: [],
+  animationName: 'default',
+  animationStartFrame: 1,
+  animationEndFrame: 10,
+  animationFps: 8,
+  animationLoop: true,
+  animationPingPong: false,
 };
 
 export function buildSpriteSheet(

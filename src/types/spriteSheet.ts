@@ -29,6 +29,12 @@ export interface SpriteSheetSettings {
   padding: number;
   alphaThreshold: number;
   excludedSourceFrameIndices: number[];
+  animationName: string;
+  animationStartFrame: number;
+  animationEndFrame: number;
+  animationFps: number;
+  animationLoop: boolean;
+  animationPingPong: boolean;
 }
 
 export interface SpriteSheetFrame {

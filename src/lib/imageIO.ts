@@ -1,6 +1,8 @@
 import { applyChromaKey } from './chromaKey';
 import { GifEncoder } from './gifEncoder';
+import { buildPlaybackSequence, selectAnimationRange } from './animation';
 import { buildSpriteSheet } from './spriteSheet';
+import { createZip } from './zip';
 import type { ChromaKeySettings, LoadedImage } from '../types/image';
 import type {
   SpriteSheetBuildResult,
@@ -65,41 +67,67 @@ export async function exportIndividualFrames(
   const { result } = renderExportImage(image, settings, spriteSheetSettings);
   if (!result) throw new Error('Failed to build sprite sheet');
 
-  const sourceCanvas = document.createElement('canvas');
-  sourceCanvas.width = result.width;
-  sourceCanvas.height = result.height;
-  const sourceCtx = sourceCanvas.getContext('2d');
-  if (!sourceCtx) throw new Error('Cannot obtain 2D context');
-  sourceCtx.putImageData(result.imageData, 0, 0);
-
-  const frameCanvas = document.createElement('canvas');
-  frameCanvas.width = spriteSheetSettings.frameWidth;
-  frameCanvas.height = spriteSheetSettings.frameHeight;
-  const frameCtx = frameCanvas.getContext('2d');
-  if (!frameCtx) throw new Error('Cannot obtain 2D context');
-
   const stem = getStem(image.name);
-  for (const frame of result.frames.filter((item) => item.sourceIndex !== null)) {
-    frameCtx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
-    frameCtx.drawImage(
-      sourceCanvas,
-      frame.destinationCell.x,
-      frame.destinationCell.y,
-      frame.destinationCell.width,
-      frame.destinationCell.height,
-      0,
-      0,
-      frameCanvas.width,
-      frameCanvas.height,
-    );
-    const blob = await canvasToPngBlob(frameCanvas);
-    const index = String(frame.index + 1).padStart(3, '0');
-    triggerDownload(blob, `${stem}_frame_${index}.png`);
+  const frames = await renderFramePngs(result, spriteSheetSettings);
+  for (const frame of frames) {
+    triggerDownload(frame.blob, `${stem}_${frame.name}.png`);
   }
 }
 
+export async function exportProjectZip(
+  image: LoadedImage,
+  settings: ChromaKeySettings,
+  spriteSheetSettings: SpriteSheetSettings,
+): Promise<void> {
+  const { result, output } = renderExportImage(
+    image,
+    settings,
+    spriteSheetSettings,
+  );
+  const stem = getStem(image.name);
+  const entries: { path: string; data: Uint8Array }[] = [];
+
+  const outputBlob = await imageDataToPngBlob(output);
+  entries.push({
+    path: result ? `${stem}_spritesheet.png` : `${stem}_transparent.png`,
+    data: await blobToBytes(outputBlob),
+  });
+
+  const metadata = result
+    ? buildSpriteSheetMetadata(image, spriteSheetSettings, result)
+    : buildTransparentImageMetadata(image, output);
+  entries.push({
+    path: `${stem}_metadata.json`,
+    data: new TextEncoder().encode(JSON.stringify(metadata, null, 2)),
+  });
+
+  if (result) {
+    const framePngs = await renderFramePngs(result, spriteSheetSettings);
+    for (const frame of framePngs) {
+      entries.push({
+        path: `frames/${frame.name}.png`,
+        data: await blobToBytes(frame.blob),
+      });
+    }
+
+    if (canBuildAnimationGif(result, spriteSheetSettings)) {
+      const gifBytes = buildAnimationGifBytes(result, spriteSheetSettings, {});
+      entries.push({
+        path: `${stem}_animation_${spriteSheetSettings.animationFps}fps.gif`,
+        data: gifBytes,
+      });
+    }
+  }
+
+  const zipBytes = createZip(entries);
+  triggerDownload(
+    new Blob([zipBytes as BlobPart], { type: 'application/zip' }),
+    buildZipExportName(image.name),
+  );
+}
+
 export interface AnimationGifOptions {
-  fps: number;
+  fps?: number;
   alphaThreshold?: number;
   loop?: number;
 }
@@ -116,8 +144,27 @@ export async function exportAnimationGif(
   const { result } = renderExportImage(image, settings, spriteSheetSettings);
   if (!result) throw new Error('Failed to build sprite sheet');
 
-  const animationFrames = result.frames.filter(
-    (frame) => frame.sourceIndex !== null,
+  const bytes = buildAnimationGifBytes(result, spriteSheetSettings, options);
+  const fps = Math.max(
+    1,
+    Math.min(60, Math.round(options.fps ?? spriteSheetSettings.animationFps)),
+  );
+  const blob = new Blob([bytes as BlobPart], { type: 'image/gif' });
+  triggerDownload(blob, buildAnimationGifExportName(image.name, fps));
+}
+
+function buildAnimationGifBytes(
+  result: SpriteSheetBuildResult,
+  spriteSheetSettings: SpriteSheetSettings,
+  options: AnimationGifOptions,
+): Uint8Array {
+  const animationFrames = buildPlaybackSequence(
+    selectAnimationRange(
+      result.frames.filter((frame) => frame.sourceIndex !== null),
+      spriteSheetSettings.animationStartFrame,
+      spriteSheetSettings.animationEndFrame,
+    ),
+    spriteSheetSettings.animationPingPong,
   );
   if (animationFrames.length === 0) {
     throw new Error('No frames available for animation');
@@ -140,10 +187,13 @@ export async function exportAnimationGif(
   if (!frameCtx) throw new Error('Cannot obtain 2D context');
   frameCtx.imageSmoothingEnabled = false;
 
-  const fps = Math.max(1, Math.min(60, Math.round(options.fps)));
+  const fps = Math.max(
+    1,
+    Math.min(60, Math.round(options.fps ?? spriteSheetSettings.animationFps)),
+  );
   const delayCs = Math.max(2, Math.round(100 / fps));
   const alphaThreshold = options.alphaThreshold ?? 128;
-  const loop = options.loop ?? 0;
+  const loop = options.loop ?? (spriteSheetSettings.animationLoop ? 0 : 1);
 
   const encoder = new GifEncoder(frameWidth, frameHeight, loop);
   for (const frame of animationFrames) {
@@ -163,9 +213,23 @@ export async function exportAnimationGif(
     encoder.addFrame({ imageData: data, delayCs, alphaThreshold });
   }
 
-  const bytes = encoder.finalize();
-  const blob = new Blob([bytes as BlobPart], { type: 'image/gif' });
-  triggerDownload(blob, buildAnimationGifExportName(image.name, fps));
+  return encoder.finalize();
+}
+
+export function canBuildAnimationGif(
+  result: SpriteSheetBuildResult,
+  spriteSheetSettings: SpriteSheetSettings,
+): boolean {
+  return (
+    buildPlaybackSequence(
+      selectAnimationRange(
+        result.frames.filter((frame) => frame.sourceIndex !== null),
+        spriteSheetSettings.animationStartFrame,
+        spriteSheetSettings.animationEndFrame,
+      ),
+      spriteSheetSettings.animationPingPong,
+    ).length > 0
+  );
 }
 
 export function buildExportName(sourceName: string): string {
@@ -191,6 +255,10 @@ export function buildSpriteSheetExportName(
 
 export function buildMetadataExportName(sourceName: string): string {
   return `${getStem(sourceName)}_metadata.json`;
+}
+
+export function buildZipExportName(sourceName: string): string {
+  return `${getStem(sourceName)}_export.zip`;
 }
 
 function renderExportImage(
@@ -257,6 +325,21 @@ function buildSpriteSheetMetadata(
     },
     anchor: settings.anchor,
     fitMode: settings.fitMode,
+    animations: [
+      {
+        name: settings.animationName,
+        startFrame: settings.animationStartFrame,
+        endFrame: settings.animationEndFrame,
+        fps: settings.animationFps,
+        loop: settings.animationLoop,
+        pingPong: settings.animationPingPong,
+        frames: selectAnimationRange(
+          result.frames.filter((frame) => frame.sourceIndex !== null),
+          settings.animationStartFrame,
+          settings.animationEndFrame,
+        ).map((frame) => frame.index),
+      },
+    ],
     frames: result.frames.map((frame) => ({
       index: frame.index,
       sourceIndex: frame.sourceIndex,
@@ -289,6 +372,60 @@ function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
       else reject(new Error('Failed to encode PNG'));
     }, 'image/png');
   });
+}
+
+async function imageDataToPngBlob(imageData: ImageData): Promise<Blob> {
+  const canvas = document.createElement('canvas');
+  canvas.width = imageData.width;
+  canvas.height = imageData.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Cannot obtain 2D context');
+  ctx.putImageData(imageData, 0, 0);
+  return canvasToPngBlob(canvas);
+}
+
+async function renderFramePngs(
+  result: SpriteSheetBuildResult,
+  settings: SpriteSheetSettings,
+): Promise<Array<{ name: string; blob: Blob }>> {
+  const sourceCanvas = document.createElement('canvas');
+  sourceCanvas.width = result.width;
+  sourceCanvas.height = result.height;
+  const sourceCtx = sourceCanvas.getContext('2d');
+  if (!sourceCtx) throw new Error('Cannot obtain 2D context');
+  sourceCtx.putImageData(result.imageData, 0, 0);
+
+  const frameCanvas = document.createElement('canvas');
+  frameCanvas.width = settings.frameWidth;
+  frameCanvas.height = settings.frameHeight;
+  const frameCtx = frameCanvas.getContext('2d');
+  if (!frameCtx) throw new Error('Cannot obtain 2D context');
+
+  const output: Array<{ name: string; blob: Blob }> = [];
+  for (const frame of result.frames.filter((item) => item.sourceIndex !== null)) {
+    frameCtx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
+    frameCtx.drawImage(
+      sourceCanvas,
+      frame.destinationCell.x,
+      frame.destinationCell.y,
+      frame.destinationCell.width,
+      frame.destinationCell.height,
+      0,
+      0,
+      frameCanvas.width,
+      frameCanvas.height,
+    );
+    const index = String(frame.index + 1).padStart(3, '0');
+    output.push({
+      name: `frame_${index}`,
+      blob: await canvasToPngBlob(frameCanvas),
+    });
+  }
+  return output;
+}
+
+async function blobToBytes(blob: Blob): Promise<Uint8Array> {
+  return new Uint8Array(await blob.arrayBuffer());
 }
 
 function getStem(sourceName: string): string {

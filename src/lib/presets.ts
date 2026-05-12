@@ -141,7 +141,17 @@ function isSpriteSheetSettings(value: unknown): value is SpriteSheetSettings {
     isFiniteNumber(obj.padding) &&
     isFiniteNumber(obj.alphaThreshold) &&
     (obj.excludedSourceFrameIndices === undefined ||
-      isNumberArray(obj.excludedSourceFrameIndices))
+      isNumberArray(obj.excludedSourceFrameIndices)) &&
+    (obj.animationName === undefined || typeof obj.animationName === 'string') &&
+    (obj.animationStartFrame === undefined ||
+      isFiniteNumber(obj.animationStartFrame)) &&
+    (obj.animationEndFrame === undefined ||
+      isFiniteNumber(obj.animationEndFrame)) &&
+    (obj.animationFps === undefined || isFiniteNumber(obj.animationFps)) &&
+    (obj.animationLoop === undefined ||
+      typeof obj.animationLoop === 'boolean') &&
+    (obj.animationPingPong === undefined ||
+      typeof obj.animationPingPong === 'boolean')
   );
 }
 
@@ -158,6 +168,14 @@ function normalizeSpriteSheetSettings(
   return {
     ...settings,
     excludedSourceFrameIndices: settings.excludedSourceFrameIndices ?? [],
+    animationName: settings.animationName ?? 'default',
+    animationStartFrame: settings.animationStartFrame ?? 1,
+    animationEndFrame:
+      settings.animationEndFrame ??
+      settings.outputColumns * settings.outputRows,
+    animationFps: settings.animationFps ?? 8,
+    animationLoop: settings.animationLoop ?? true,
+    animationPingPong: settings.animationPingPong ?? false,
   };
 }
 

@@ -45,6 +45,22 @@ export function validateSpriteSheetSettings(
     });
   }
 
+  if (settings.animationStartFrame > includedCount && includedCount > 0) {
+    diagnostics.push({
+      severity: 'warning',
+      code: 'animation-range-outside-selection',
+      message: 'Animation start frame is outside the included frame selection.',
+    });
+  }
+
+  if (settings.animationEndFrame > includedCount && includedCount > 0) {
+    diagnostics.push({
+      severity: 'warning',
+      code: 'animation-range-clamped',
+      message: 'Animation end frame is past the included frames and will be clamped.',
+    });
+  }
+
   const usableWidth =
     image.width -
     settings.sourceMarginX * 2 -

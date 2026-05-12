@@ -4,11 +4,29 @@ export interface ChangelogEntry {
   highlights: string[];
 }
 
-export const APP_VERSION = '0.6.0';
+export const APP_VERSION = '0.8.0';
 
 export const REPO_URL = 'https://github.com/utopialize/Chroma-Sprite-Cutter';
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.8.0',
+    date: '2026-05-12',
+    highlights: [
+      'ZIP package export containing the final PNG, metadata JSON, individual frame PNGs, and animation GIF.',
+      'Dependency-free ZIP writer for packaging already-compressed game asset files.',
+      'Frame export internals are shared between individual downloads and ZIP packaging.',
+    ],
+  },
+  {
+    version: '0.7.0',
+    date: '2026-05-12',
+    highlights: [
+      'Persistent animation settings in the Build step: name, frame range, FPS, loop, and ping-pong.',
+      'Animation preview, GIF export, metadata, and project presets now use the same animation configuration.',
+      'Diagnostics warn when animation ranges exceed the included frame selection.',
+    ],
+  },
   {
     version: '0.6.0',
     date: '2026-05-12',

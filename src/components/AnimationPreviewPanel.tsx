@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { nextAnimationFrame, previousAnimationFrame } from '../lib/animation';
+import {
+  nextAnimationFrame,
+  previousAnimationFrame,
+  selectAnimationRange,
+} from '../lib/animation';
 import { applyChromaKey } from '../lib/chromaKey';
 import { buildSpriteSheet } from '../lib/spriteSheet';
 import type { ChromaKeySettings, LoadedImage } from '../types/image';
@@ -73,10 +77,6 @@ const styles: Record<string, CSSProperties> = {
     color: colors.textSecondary,
     fontSize: fontSize.xs,
   },
-  slider: {
-    width: '100%',
-    accentColor: colors.accentHi,
-  },
   empty: {
     color: colors.textDim,
     fontSize: fontSize.xs,
@@ -92,8 +92,6 @@ export function AnimationPreviewPanel({
 }: AnimationPreviewPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [playing, setPlaying] = useState(false);
-  const [fps, setFps] = useState(8);
-  const [pingPong, setPingPong] = useState(false);
   const [frame, setFrame] = useState({ index: 0, direction: 1 as 1 | -1 });
 
   const build = useMemo(() => {
@@ -115,10 +113,22 @@ export function AnimationPreviewPanel({
   useEffect(() => {
     if (!playing || disabled) return;
     const interval = window.setInterval(() => {
-      setFrame((current) => nextAnimationFrame(current, frameCount, pingPong));
-    }, 1000 / fps);
+      setFrame((current) =>
+        nextAnimationFrame(
+          current,
+          frameCount,
+          spriteSheetSettings.animationPingPong,
+        ),
+      );
+    }, 1000 / spriteSheetSettings.animationFps);
     return () => window.clearInterval(interval);
-  }, [playing, disabled, frameCount, fps, pingPong]);
+  }, [
+    playing,
+    disabled,
+    frameCount,
+    spriteSheetSettings.animationFps,
+    spriteSheetSettings.animationPingPong,
+  ]);
 
   useEffect(() => {
     if (!build) return;
@@ -175,24 +185,19 @@ export function AnimationPreviewPanel({
         </button>
       </div>
       <label style={styles.row}>
-        <span>FPS</span>
-        <span>{fps}</span>
+        <span>Animation</span>
+        <span>{spriteSheetSettings.animationName}</span>
       </label>
-      <input
-        type="range"
-        min={1}
-        max={24}
-        value={fps}
-        onChange={(event) => setFps(Number(event.target.value))}
-        style={styles.slider}
-      />
       <label style={styles.row}>
-        <span>Ping-pong</span>
-        <input
-          type="checkbox"
-          checked={pingPong}
-          onChange={(event) => setPingPong(event.target.checked)}
-        />
+        <span>FPS</span>
+        <span>{spriteSheetSettings.animationFps}</span>
+      </label>
+      <label style={styles.row}>
+        <span>Playback</span>
+        <span>
+          {spriteSheetSettings.animationLoop ? 'Loop' : 'Once'}
+          {spriteSheetSettings.animationPingPong ? ' / Ping-pong' : ''}
+        </span>
       </label>
       <div style={styles.row}>
         <span>Frame</span>
@@ -232,7 +237,11 @@ function buildAnimationSheet(
 
   return {
     result,
-    frames: result.frames.filter((frame) => frame.sourceIndex !== null),
+    frames: selectAnimationRange(
+      result.frames.filter((frame) => frame.sourceIndex !== null),
+      spriteSheetSettings.animationStartFrame,
+      spriteSheetSettings.animationEndFrame,
+    ),
     sheetCanvas,
   };
 }

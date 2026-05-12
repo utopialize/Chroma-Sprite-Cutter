@@ -81,6 +81,23 @@ describe('serializeProjectPreset / parseProjectPreset', () => {
     expect(parsed.spriteSheet.outputColumns).toBe(8);
   });
 
+  it('round-trips animation settings', () => {
+    const json = serializeProjectPreset(SETTINGS, {
+      ...DEFAULT_SPRITESHEET_SETTINGS,
+      animationName: 'walk',
+      animationStartFrame: 2,
+      animationEndFrame: 5,
+      animationFps: 12,
+      animationPingPong: true,
+    });
+    const parsed = parseProjectPreset(json);
+    expect(parsed.spriteSheet.animationName).toBe('walk');
+    expect(parsed.spriteSheet.animationStartFrame).toBe(2);
+    expect(parsed.spriteSheet.animationEndFrame).toBe(5);
+    expect(parsed.spriteSheet.animationFps).toBe(12);
+    expect(parsed.spriteSheet.animationPingPong).toBe(true);
+  });
+
   it('does not accept mask-only presets as project presets', () => {
     const json = serializePreset(SETTINGS);
     expect(() => parseProjectPreset(json)).toThrow(/mask-only/);

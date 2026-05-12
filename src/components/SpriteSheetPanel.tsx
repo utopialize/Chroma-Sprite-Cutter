@@ -215,6 +215,9 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: radii.md,
     textAlign: 'center',
   },
+  fullWidth: {
+    gridColumn: '1 / -1',
+  },
 };
 
 export function SpriteSheetPanel({
@@ -236,6 +239,11 @@ export function SpriteSheetPanel({
       const parsed = Number(event.target.value);
       const value = Number.isFinite(parsed) ? parsed : min;
       update(key, Math.max(min, Math.min(max, Math.round(value))));
+    };
+
+  const updateText =
+    (key: TextKey) => (event: ChangeEvent<HTMLInputElement>) => {
+      update(key, event.target.value);
     };
 
   const contentStyle: CSSProperties = settings.enabled ? {} : styles.disabled;
@@ -313,6 +321,9 @@ export function SpriteSheetPanel({
                   ...settings,
                   ...template.settings,
                   excludedSourceFrameIndices: [],
+                  animationStartFrame: 1,
+                  animationEndFrame:
+                    template.settings.outputColumns * template.settings.outputRows,
                 })
               }
             >
@@ -541,6 +552,68 @@ export function SpriteSheetPanel({
         </div>
       </div>
 
+      <div style={contentStyle}>
+        <span style={styles.section}>Animation</span>
+        <div style={styles.grid}>
+          <label style={{ ...styles.field, ...styles.fullWidth }}>
+            <span style={styles.label}>Name</span>
+            <input
+              type="text"
+              value={settings.animationName}
+              disabled={!settings.enabled}
+              onChange={updateText('animationName')}
+              style={styles.input}
+            />
+          </label>
+          <NumberField
+            label="Start"
+            min={1}
+            max={sourceFrameCount}
+            value={settings.animationStartFrame}
+            disabled={!settings.enabled}
+            onChange={updateNumber('animationStartFrame', 1, sourceFrameCount)}
+          />
+          <NumberField
+            label="End"
+            min={1}
+            max={sourceFrameCount}
+            value={settings.animationEndFrame}
+            disabled={!settings.enabled}
+            onChange={updateNumber('animationEndFrame', 1, sourceFrameCount)}
+          />
+          <NumberField
+            label="FPS"
+            min={1}
+            max={60}
+            value={settings.animationFps}
+            disabled={!settings.enabled}
+            onChange={updateNumber('animationFps', 1, 60)}
+          />
+          <label style={styles.toggleRow}>
+            <span>Loop</span>
+            <input
+              type="checkbox"
+              checked={settings.animationLoop}
+              disabled={!settings.enabled}
+              onChange={(event) => update('animationLoop', event.target.checked)}
+              style={styles.checkbox}
+            />
+          </label>
+          <label style={styles.toggleRow}>
+            <span>Ping-pong</span>
+            <input
+              type="checkbox"
+              checked={settings.animationPingPong}
+              disabled={!settings.enabled}
+              onChange={(event) =>
+                update('animationPingPong', event.target.checked)
+              }
+              style={styles.checkbox}
+            />
+          </label>
+        </div>
+      </div>
+
       <span style={styles.help}>
         Processed preview and export use the rebuilt sheet while this mode is
         enabled.
@@ -665,6 +738,12 @@ function drawCheckerBackground(
 
 type NumberKey = {
   [K in keyof SpriteSheetSettings]: SpriteSheetSettings[K] extends number
+    ? K
+    : never;
+}[keyof SpriteSheetSettings];
+
+type TextKey = {
+  [K in keyof SpriteSheetSettings]: SpriteSheetSettings[K] extends string
     ? K
     : never;
 }[keyof SpriteSheetSettings];
