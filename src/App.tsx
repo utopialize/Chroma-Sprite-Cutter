@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { AnimationPreviewPanel } from './components/AnimationPreviewPanel';
 import { BackgroundPreviewSelector } from './components/BackgroundPreviewSelector';
+import { ChangelogModal } from './components/ChangelogModal';
 import { ControlsPanel } from './components/ControlsPanel';
 import { ExportPanel } from './components/ExportPanel';
 import { ImportPanel } from './components/ImportPanel';
 import { PreviewCanvas } from './components/PreviewCanvas';
 import { ProjectPresetPanel } from './components/ProjectPresetPanel';
 import { SpriteSheetPanel } from './components/SpriteSheetPanel';
+import { APP_VERSION, REPO_URL } from './changelog';
 import { autoDetectKeyColor } from './lib/colorUtils';
 import { DEFAULT_SPRITESHEET_SETTINGS } from './lib/spriteSheet';
 import { validateSpriteSheetSettings } from './lib/spriteSheetValidation';
@@ -311,10 +313,45 @@ const styles: Record<string, CSSProperties> = {
     padding: `0 ${spacing.xxl}px`,
     borderTop: `1px solid ${colors.border}`,
     backgroundColor: colors.bgPanel,
+    gap: spacing.lg,
+  },
+  footerMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: spacing.md,
+    minWidth: 0,
+  },
+  versionButton: {
+    padding: '5px 10px',
+    border: `1px solid ${colors.borderInput}`,
+    backgroundColor: colors.bgInput,
+    color: colors.textSecondary,
+    borderRadius: radii.pill,
+    cursor: 'pointer',
+    fontSize: fontSize.xxs,
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: 0.3,
+  },
+  repoLink: {
+    color: colors.textMuted,
+    fontSize: fontSize.xxs,
+    fontWeight: 600,
+    textDecoration: 'none',
+    padding: '5px 8px',
+    borderRadius: radii.sm,
+  },
+  footerDivider: {
+    color: colors.textDim,
+    fontSize: fontSize.xxs,
+    userSelect: 'none',
   },
   footerHint: {
     color: colors.textDim,
     fontSize: fontSize.xs,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
   footerButtons: {
     display: 'flex',
@@ -359,6 +396,7 @@ export default function App() {
     useState<SpriteSheetPreviewMode>('sheet-final');
   const [zoom, setZoom] = useState<Zoom>('fit');
   const [eyedropperActive, setEyedropperActive] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
 
   useEffect(() => {
     if (!image) return;
@@ -807,7 +845,27 @@ export default function App() {
       )}
 
       <footer style={styles.footer}>
-        <span style={styles.footerHint}>{footerHint(activeStep)}</span>
+        <div style={styles.footerMeta}>
+          <button
+            type="button"
+            style={styles.versionButton}
+            onClick={() => setChangelogOpen(true)}
+            title="View changelog"
+          >
+            v{APP_VERSION}
+          </button>
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer noopener"
+            style={styles.repoLink}
+            title="Open the project on GitHub"
+          >
+            GitHub ↗
+          </a>
+          <span style={styles.footerDivider}>·</span>
+          <span style={styles.footerHint}>{footerHint(activeStep)}</span>
+        </div>
         <div style={styles.footerButtons}>
           {activeStep !== 'import' && (
             <button type="button" style={styles.secondaryButton} onClick={goBack}>
@@ -838,6 +896,11 @@ export default function App() {
           )}
         </div>
       </footer>
+
+      <ChangelogModal
+        open={changelogOpen}
+        onClose={() => setChangelogOpen(false)}
+      />
     </div>
   );
 }
