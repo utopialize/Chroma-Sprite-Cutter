@@ -28,7 +28,7 @@ beforeAll(() => {
   }
 });
 
-function pixels(...rgba: number[]): Uint8ClampedArray {
+function pixels(...rgba: number[]) {
   return new Uint8ClampedArray(rgba);
 }
 
