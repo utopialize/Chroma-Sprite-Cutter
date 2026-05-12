@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildSpriteSheetMetadata,
   buildExportName,
   buildMetadataExportName,
   buildSpriteSheetExportName,
   buildZipExportName,
+  buildZipContentSummary,
   canBuildAnimationGif,
+  sanitizeFileBaseName,
 } from './imageIO';
 import { DEFAULT_SPRITESHEET_SETTINGS } from './spriteSheet';
+import type { LoadedImage } from '../types/image';
 import type { SpriteSheetBuildResult } from '../types/spriteSheet';
 
 describe('buildExportName', () => {
@@ -51,6 +55,99 @@ describe('buildExportName', () => {
 
   it('builds a zip export name', () => {
     expect(buildZipExportName('hero.png')).toBe('hero_export.zip');
+  });
+
+  it('uses a custom export base name when provided', () => {
+    expect(
+      buildSpriteSheetExportName('hero.png', DEFAULT_SPRITESHEET_SETTINGS, {
+        fileBaseName: 'knight walk.png',
+      }),
+    ).toBe('knight_walk_spritesheet_5x2_128x128.png');
+    expect(
+      buildMetadataExportName('hero.png', { fileBaseName: 'knight walk.png' }),
+    ).toBe('knight_walk_metadata.json');
+  });
+
+  it('sanitizes file base names', () => {
+    expect(sanitizeFileBaseName(' boss:attack 01.png ')).toBe('boss_attack_01');
+    expect(sanitizeFileBaseName('***')).toBe('sprite');
+  });
+
+  it('describes zip package contents for the UI', () => {
+    const summary = buildZipContentSummary(
+      'hero.png',
+      { ...DEFAULT_SPRITESHEET_SETTINGS, enabled: true },
+      {
+        fileBaseName: 'knight',
+        metadataPreset: 'phaser',
+      },
+    );
+    expect(summary.map((item) => item.name)).toContain(
+      'knight_spritesheet_5x2_128x128.png',
+    );
+    expect(summary.map((item) => item.name)).toContain('knight_metadata.json');
+    expect(summary.some((item) => item.detail.includes('Phaser atlas'))).toBe(true);
+  });
+});
+
+describe('buildSpriteSheetMetadata', () => {
+  it('builds generic metadata by default', () => {
+    const metadata = buildSpriteSheetMetadata(
+      makeImage('hero.png'),
+      DEFAULT_SPRITESHEET_SETTINGS,
+      makeResult([0, 1]),
+    ) as { preset: string; file: string };
+
+    expect(metadata.preset).toBe('generic');
+    expect(metadata.file).toBe('hero_spritesheet_5x2_128x128.png');
+  });
+
+  it('builds Aseprite-like metadata', () => {
+    const metadata = buildSpriteSheetMetadata(
+      makeImage('hero.png'),
+      DEFAULT_SPRITESHEET_SETTINGS,
+      makeResult([0, 1]),
+      { metadataPreset: 'aseprite', fileBaseName: 'knight' },
+    ) as { frames: Record<string, unknown>; meta: { image: string } };
+
+    expect(metadata.meta.image).toBe('knight_spritesheet_5x2_128x128.png');
+    expect(metadata.frames['frame_001.png']).toBeDefined();
+  });
+
+  it('builds Phaser atlas metadata', () => {
+    const metadata = buildSpriteSheetMetadata(
+      makeImage('hero.png'),
+      DEFAULT_SPRITESHEET_SETTINGS,
+      makeResult([0]),
+      { metadataPreset: 'phaser' },
+    ) as { textures: Array<{ frames: unknown[] }> };
+
+    expect(metadata.textures[0].frames).toHaveLength(1);
+  });
+
+  it('builds Godot metadata', () => {
+    const metadata = buildSpriteSheetMetadata(
+      makeImage('hero.png'),
+      DEFAULT_SPRITESHEET_SETTINGS,
+      makeResult([0]),
+      { metadataPreset: 'godot' },
+    ) as { type: string; hframes: number; vframes: number };
+
+    expect(metadata.type).toBe('godot-spritesheet');
+    expect(metadata.hframes).toBe(DEFAULT_SPRITESHEET_SETTINGS.outputColumns);
+    expect(metadata.vframes).toBe(DEFAULT_SPRITESHEET_SETTINGS.outputRows);
+  });
+
+  it('builds Unity metadata', () => {
+    const metadata = buildSpriteSheetMetadata(
+      makeImage('hero.png'),
+      DEFAULT_SPRITESHEET_SETTINGS,
+      makeResult([0]),
+      { metadataPreset: 'unity' },
+    ) as { type: string; spriteMode: string };
+
+    expect(metadata.type).toBe('unity-spritesheet');
+    expect(metadata.spriteMode).toBe('Multiple');
   });
 });
 
@@ -102,4 +199,8 @@ function makeResult(sourceIndices: Array<number | null>): SpriteSheetBuildResult
       drawRect: sourceIndex === null ? null : { x: 0, y: 0, width: 1, height: 1 },
     })),
   };
+}
+
+function makeImage(name: string): LoadedImage {
+  return { name } as LoadedImage;
 }

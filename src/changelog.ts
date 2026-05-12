@@ -4,13 +4,22 @@ export interface ChangelogEntry {
   highlights: string[];
 }
 
-export const APP_VERSION = '0.8.0';
+export const APP_VERSION = '0.1.8';
 
 export const REPO_URL = 'https://github.com/utopialize/Chroma-Sprite-Cutter';
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '0.8.0',
+    version: '0.1.8',
+    date: '2026-05-12',
+    highlights: [
+      'Export step now lets users choose the output file base name from the UI.',
+      'Metadata presets for Generic, Aseprite-like, Phaser atlas, Godot, and Unity-oriented JSON.',
+      'ZIP package summary shows the generated PNG, metadata, frame PNGs, and conditional GIF before export.',
+    ],
+  },
+  {
+    version: '0.1.7',
     date: '2026-05-12',
     highlights: [
       'ZIP package export containing the final PNG, metadata JSON, individual frame PNGs, and animation GIF.',
@@ -19,7 +28,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    version: '0.7.0',
+    version: '0.1.6',
     date: '2026-05-12',
     highlights: [
       'Persistent animation settings in the Build step: name, frame range, FPS, loop, and ping-pong.',
@@ -28,7 +37,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    version: '0.6.0',
+    version: '0.1.5',
     date: '2026-05-12',
     highlights: [
       'Animated GIF export with transparency from the rebuilt sprite sheet, with configurable FPS.',
@@ -37,7 +46,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    version: '0.5.0',
+    version: '0.1.4',
     date: '2026-05-12',
     highlights: [
       'Source frame inclusion/exclusion before the sheet is reassembled.',
@@ -46,7 +55,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    version: '0.4.0',
+    version: '0.1.3',
     date: '2026-05-12',
     highlights: [
       'Animation preview panel with play/pause, FPS slider, prev/next stepping, and ping-pong mode.',
@@ -54,7 +63,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    version: '0.3.0',
+    version: '0.1.2',
     date: '2026-05-12',
     highlights: [
       'Alpha mask view mode in the Clean Background step for debugging edges.',
@@ -62,7 +71,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    version: '0.2.0',
+    version: '0.1.1',
     date: '2026-05-12',
     highlights: [
       'Sprite Sheet Builder validation and diagnostics surfaced in the workspace.',
