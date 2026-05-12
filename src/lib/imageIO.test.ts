@@ -125,6 +125,46 @@ describe('buildSpriteSheetMetadata', () => {
     expect(metadata.textures[0].frames).toHaveLength(1);
   });
 
+  it('exports all named animations and the active animation id', () => {
+    const metadata = buildSpriteSheetMetadata(
+      makeImage('hero.png'),
+      {
+        ...DEFAULT_SPRITESHEET_SETTINGS,
+        animations: [
+          {
+            id: 'idle',
+            name: 'idle',
+            startFrame: 1,
+            endFrame: 2,
+            fps: 8,
+            loop: true,
+            pingPong: false,
+          },
+          {
+            id: 'attack',
+            name: 'attack',
+            startFrame: 2,
+            endFrame: 3,
+            fps: 12,
+            loop: false,
+            pingPong: true,
+          },
+        ],
+        activeAnimationId: 'attack',
+      },
+      makeResult([0, 1, 2]),
+    ) as {
+      activeAnimationId: string;
+      animations: Array<{ id: string; name: string }>;
+    };
+
+    expect(metadata.activeAnimationId).toBe('attack');
+    expect(metadata.animations.map((item) => item.name)).toEqual([
+      'idle',
+      'attack',
+    ]);
+  });
+
   it('builds Godot metadata', () => {
     const metadata = buildSpriteSheetMetadata(
       makeImage('hero.png'),

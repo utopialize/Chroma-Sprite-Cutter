@@ -1,5 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { DEFAULT_SPRITESHEET_SETTINGS, buildFramePlan } from './spriteSheet';
+import {
+  DEFAULT_SPRITESHEET_SETTINGS,
+  autoCenterManualFrames,
+  buildFramePlan,
+} from './spriteSheet';
 
 beforeAll(() => {
   if (typeof globalThis.ImageData === 'undefined') {
@@ -197,5 +201,146 @@ describe('buildFramePlan', () => {
     });
 
     expect(frame.drawRect).toEqual({ x: 3, y: 0, width: 6, height: 6 });
+  });
+
+  it('auto-centers each frame horizontally inside its own output cell', () => {
+    const image = makeImage(8, 4);
+    setAlpha(image, 0, 1, 255);
+    setAlpha(image, 3, 1, 16);
+    setAlpha(image, 4, 1, 16);
+    setAlpha(image, 7, 1, 255);
+
+    const manualFrames = autoCenterManualFrames(
+      image,
+      {
+        ...DEFAULT_SPRITESHEET_SETTINGS,
+        enabled: true,
+        sourceColumns: 2,
+        sourceRows: 1,
+        outputColumns: 2,
+        outputRows: 1,
+        frameWidth: 4,
+        frameHeight: 4,
+        fitMode: 'original',
+        anchor: 'center',
+        manualFrames: [
+          {
+            id: 'left',
+            sourceIndex: 0,
+            name: 'left',
+            offsetX: 0,
+            offsetY: 0,
+            locked: false,
+          },
+          {
+            id: 'right',
+            sourceIndex: 1,
+            name: 'right',
+            offsetX: 0,
+            offsetY: 0,
+            locked: false,
+          },
+        ],
+      },
+      'x',
+    );
+
+    expect(manualFrames[0].offsetX).toBe(1);
+    expect(manualFrames[1].offsetX).toBe(-1);
+    expect(manualFrames[0].offsetY).toBe(0);
+    expect(manualFrames[1].offsetY).toBe(0);
+  });
+
+  it('auto-centers each frame vertically inside its own output cell', () => {
+    const image = makeImage(4, 8);
+    setAlpha(image, 1, 0, 255);
+    setAlpha(image, 1, 3, 16);
+    setAlpha(image, 1, 4, 16);
+    setAlpha(image, 1, 7, 255);
+
+    const manualFrames = autoCenterManualFrames(
+      image,
+      {
+        ...DEFAULT_SPRITESHEET_SETTINGS,
+        enabled: true,
+        sourceColumns: 1,
+        sourceRows: 2,
+        outputColumns: 1,
+        outputRows: 2,
+        frameWidth: 4,
+        frameHeight: 4,
+        fitMode: 'original',
+        anchor: 'center',
+        manualFrames: [
+          {
+            id: 'reference',
+            sourceIndex: 0,
+            name: 'reference',
+            offsetX: 0,
+            offsetY: 0,
+            locked: false,
+          },
+          {
+            id: 'moving',
+            sourceIndex: 1,
+            name: 'moving',
+            offsetX: 0,
+            offsetY: 0,
+            locked: false,
+          },
+        ],
+      },
+      'y',
+    );
+
+    expect(manualFrames[0].offsetY).toBe(1);
+    expect(manualFrames[1].offsetY).toBe(-1);
+  });
+
+  it('auto-centers only the targeted manual frame selection', () => {
+    const image = makeImage(8, 4);
+    setAlpha(image, 0, 1, 255);
+    setAlpha(image, 3, 1, 16);
+    setAlpha(image, 4, 1, 16);
+    setAlpha(image, 7, 1, 255);
+
+    const manualFrames = autoCenterManualFrames(
+      image,
+      {
+        ...DEFAULT_SPRITESHEET_SETTINGS,
+        enabled: true,
+        sourceColumns: 2,
+        sourceRows: 1,
+        outputColumns: 2,
+        outputRows: 1,
+        frameWidth: 4,
+        frameHeight: 4,
+        fitMode: 'original',
+        anchor: 'center',
+        manualFrames: [
+          {
+            id: 'left',
+            sourceIndex: 0,
+            name: 'left',
+            offsetX: 0,
+            offsetY: 0,
+            locked: false,
+          },
+          {
+            id: 'right',
+            sourceIndex: 1,
+            name: 'right',
+            offsetX: 0,
+            offsetY: 0,
+            locked: false,
+          },
+        ],
+      },
+      'x',
+      new Set(['left']),
+    );
+
+    expect(manualFrames[0].offsetX).toBe(1);
+    expect(manualFrames[1].offsetX).toBe(0);
   });
 });

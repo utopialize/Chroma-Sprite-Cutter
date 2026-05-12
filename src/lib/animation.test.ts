@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildPlaybackSequence,
+  getAnimationFrameCount,
   getAnimationFrameRange,
   nextAnimationFrame,
   previousAnimationFrame,
@@ -49,5 +50,10 @@ describe('animation frame helpers', () => {
       3,
       2,
     ]);
+  });
+
+  it('counts frames in a normalized one-based range', () => {
+    expect(getAnimationFrameCount(2, 5, 10)).toBe(4);
+    expect(getAnimationFrameCount(7, 3, 10)).toBe(5);
   });
 });

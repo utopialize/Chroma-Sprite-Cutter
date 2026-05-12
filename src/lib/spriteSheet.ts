@@ -32,6 +32,18 @@ export const DEFAULT_SPRITESHEET_SETTINGS: SpriteSheetSettings = {
   animationFps: 8,
   animationLoop: true,
   animationPingPong: false,
+  animations: [
+    {
+      id: 'default-animation',
+      name: 'default',
+      startFrame: 1,
+      endFrame: 10,
+      fps: 8,
+      loop: true,
+      pingPong: false,
+    },
+  ],
+  activeAnimationId: 'default-animation',
   manualFrames: [],
 };
 
@@ -99,6 +111,70 @@ export function buildFramePlan(
     buildSourceFramePlan(source, settings),
     settings,
   );
+}
+
+export function autoCenterManualFrames(
+  source: ImageData,
+  settings: SpriteSheetSettings,
+  axis: 'x' | 'y' | 'xy',
+  targetFrameIds?: Set<string>,
+): SpriteSheetManualFrame[] {
+  const sourceFrames = buildSourceFramePlan(source, settings);
+  const frames = buildFramePlanFromSourceFrames(sourceFrames, settings);
+  const manualFrames = getEffectiveManualFrames(settings);
+  const metrics = frames
+    .map((frame, index) => {
+      if (!frame.contentRect || !frame.drawRect) return null;
+      const centroid = detectOpaqueCentroid(
+        source,
+        frame.contentRect,
+        settings.alphaThreshold,
+      );
+      if (!centroid) return null;
+      const scaleX = frame.drawRect.width / frame.contentRect.width;
+      const scaleY = frame.drawRect.height / frame.contentRect.height;
+      return {
+        manualFrame: manualFrames[index],
+        centroidX:
+          frame.drawRect.x + (centroid.x - frame.contentRect.x) * scaleX,
+        centroidY:
+          frame.drawRect.y + (centroid.y - frame.contentRect.y) * scaleY,
+        targetX:
+          frame.destinationCell.x + frame.destinationCell.width / 2,
+        targetY:
+          frame.destinationCell.y + frame.destinationCell.height / 2,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
+
+  if (metrics.length === 0) return manualFrames;
+  const byId = new Map(
+    metrics.map((item) => [item.manualFrame.id, item] as const),
+  );
+
+  return manualFrames.map((manualFrame) => {
+    if (
+      manualFrame.locked ||
+      (targetFrameIds && !targetFrameIds.has(manualFrame.id))
+    ) {
+      return manualFrame;
+    }
+    const metric = byId.get(manualFrame.id);
+    if (!metric) return manualFrame;
+    return {
+      ...manualFrame,
+      offsetX:
+        axis === 'y'
+          ? manualFrame.offsetX
+          : manualFrame.offsetX +
+            Math.round(metric.targetX - metric.centroidX),
+      offsetY:
+        axis === 'x'
+          ? manualFrame.offsetY
+          : manualFrame.offsetY +
+            Math.round(metric.targetY - metric.centroidY),
+    };
+  });
 }
 
 export function buildSourceFramePlan(
@@ -253,6 +329,34 @@ export function detectContentRect(
     y: minY,
     width: maxX - minX + 1,
     height: maxY - minY + 1,
+  };
+}
+
+export function detectOpaqueCentroid(
+  source: ImageData,
+  rect: Rect,
+  alphaThreshold: number,
+): { x: number; y: number } | null {
+  const bounds = clampRect(rect, source.width, source.height);
+  const threshold = clamp(alphaThreshold, 0, 255);
+  let sumX = 0;
+  let sumY = 0;
+  let weight = 0;
+
+  for (let y = bounds.y; y < bounds.y + bounds.height; y++) {
+    for (let x = bounds.x; x < bounds.x + bounds.width; x++) {
+      const alpha = source.data[(y * source.width + x) * 4 + 3];
+      if (alpha <= threshold) continue;
+      sumX += (x + 0.5) * alpha;
+      sumY += (y + 0.5) * alpha;
+      weight += alpha;
+    }
+  }
+
+  if (weight === 0) return null;
+  return {
+    x: sumX / weight,
+    y: sumY / weight,
   };
 }
 

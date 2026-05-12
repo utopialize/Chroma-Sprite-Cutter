@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
+import { getActiveAnimation } from '../lib/animationClips';
 import {
   buildZipContentSummary,
   exportAnimationGif,
@@ -148,6 +149,7 @@ export function ExportPanel({
   const [fileBaseName, setFileBaseName] = useState('');
   const [metadataPreset, setMetadataPreset] =
     useState<MetadataPreset>('generic');
+  const activeAnimation = getActiveAnimation(spriteSheetSettings);
 
   useEffect(() => {
     setFileBaseName(image ? sanitizeFileBaseName(image.name) : '');
@@ -347,9 +349,7 @@ export function ExportPanel({
       </div>
       {spriteSheetSettings.enabled && (
         <span style={styles.hint}>
-          GIF uses the Build step animation settings: {spriteSheetSettings.animationName},
-          {' '}
-          {spriteSheetSettings.animationFps} FPS.
+          GIF uses the active clip: {activeAnimation.name}, {activeAnimation.fps} FPS.
         </span>
       )}
       {error && <span style={styles.error}>{error}</span>}

@@ -4,11 +4,29 @@ export interface ChangelogEntry {
   highlights: string[];
 }
 
-export const APP_VERSION = '0.1.9';
+export const APP_VERSION = '0.1.11';
 
 export const REPO_URL = 'https://github.com/utopialize/Chroma-Sprite-Cutter';
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.1.11',
+    date: '2026-05-12',
+    highlights: [
+      'Builder auto-centering tools now recenter the content inside each unlocked frame on X, Y, or both axes.',
+      'Auto-centering uses the detected alpha centroid instead of only bounding-box centers, which is more stable on imperfect AI-generated sheets.',
+      'Manual corrections now support multi-selection for batch offsets, locks, deletion, duplication, and auto-centering.',
+    ],
+  },
+  {
+    version: '0.1.10',
+    date: '2026-05-12',
+    highlights: [
+      'Multiple named animation clips with an active clip selector in the Build step.',
+      'Animation preview overlays for onion skin, visible ground line, and pivot marker.',
+      'GIF export, metadata, presets, and ZIP packaging now use the active clip while preserving the full clip list in metadata.',
+    ],
+  },
   {
     version: '0.1.9',
     date: '2026-05-12',
