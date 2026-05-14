@@ -4,11 +4,24 @@ export interface ChangelogEntry {
   highlights: string[];
 }
 
-export const APP_VERSION = '0.1.1';
+export const APP_VERSION = '0.2.0';
 
 export const REPO_URL = 'https://github.com/utopialize/Chroma-Sprite-Cutter';
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '0.2.0',
+    date: '2026-05-15',
+    highlights: [
+      'Added the Pixel Art Converter workflow with PNG import, chroma key background removal, target resolution controls, edge enhancement, palette reduction, and game-ready PNG export.',
+      'Pixel Art Converter previews now support original, pixel art, side-by-side, and split view modes with checkerboard, black, white, gray, green chroma, and custom backgrounds.',
+      'Pixel art previews now match the source image display size automatically, keeping preview display independent from target resolution and export scale.',
+      'Added eyedropper picking for Pixel Art Converter chroma key colors directly from the original source image.',
+      'Palette handling now ignores transparent pixels, supports auto extraction and retro presets including Game Boy, PICO-8, NES-like, and Grayscale palettes.',
+      'Added optional Pixel Art Converter dithering modes: none, ordered, and Floyd-Steinberg.',
+      'Export now saves the generated pixel art PNG from the final pipeline canvas with nearest-neighbor scaling, alpha preserved, and source-based filenames.',
+    ],
+  },
   {
     version: '0.1.1',
     date: '2026-05-12',
