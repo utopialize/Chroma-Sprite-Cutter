@@ -9,6 +9,8 @@ import {
 import type { PixelArtSettings } from '../lib/pixelate';
 import type { EdgeEnhancementMode } from '../lib/edgeEnhancement';
 import {
+  type PixelArtDarkEdgeColorMode,
+  type PixelArtDarkEdgeMode,
   type PixelArtDitheringMode,
   type PixelArtSourceImage,
   type RGB,
@@ -202,6 +204,20 @@ function clampPercent(value: number): number {
   return Math.round(value);
 }
 
+function clampPadding(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (value < 0) return 0;
+  if (value > 512) return 512;
+  return Math.round(value);
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+}
+
 export function PixelArtControls({
   settings,
   onChange,
@@ -246,6 +262,14 @@ export function PixelArtControls({
       return;
     }
     onChange({ ...settings, lockAspectRatio: enabled });
+  };
+
+  const toggleTrimSubject = (event: ChangeEvent<HTMLInputElement>) => {
+    onChange({ ...settings, trimSubjectEnabled: event.target.checked });
+  };
+
+  const setSubjectPadding = (raw: number) => {
+    onChange({ ...settings, subjectPaddingPx: clampPadding(raw) });
   };
 
   const applyPreset = (preset: number) => {
@@ -306,6 +330,36 @@ export function PixelArtControls({
 
   const setDithering = (dithering: PixelArtDitheringMode) => {
     onChange({ ...settings, dithering });
+  };
+
+  const togglePixelCleanup = (event: ChangeEvent<HTMLInputElement>) => {
+    onChange({ ...settings, pixelCleanupEnabled: event.target.checked });
+  };
+
+  const setPixelCleanupStrength = (raw: number) => {
+    onChange({ ...settings, pixelCleanupStrength: clamp01(raw) });
+  };
+
+  const toggleDarkEdge = (event: ChangeEvent<HTMLInputElement>) => {
+    onChange({ ...settings, darkEdgeEnabled: event.target.checked });
+  };
+
+  const setDarkEdgeStrength = (raw: number) => {
+    onChange({ ...settings, darkEdgeStrength: clamp01(raw) });
+  };
+
+  const setDarkEdgeMode = (mode: PixelArtDarkEdgeMode) => {
+    onChange({ ...settings, darkEdgeMode: mode });
+  };
+
+  const setDarkEdgeColorMode = (mode: PixelArtDarkEdgeColorMode) => {
+    onChange({ ...settings, darkEdgeColorMode: mode });
+  };
+
+  const toggleDarkEdgeRespectPalette = (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    onChange({ ...settings, darkEdgeRespectPalette: event.target.checked });
   };
 
   const presetActive = (preset: number) =>
@@ -458,6 +512,25 @@ export function PixelArtControls({
             Load a PNG to lock to the source aspect ratio.
           </span>
         )}
+        <label style={styles.checkboxRow}>
+          <input
+            type="checkbox"
+            checked={settings.trimSubjectEnabled}
+            onChange={toggleTrimSubject}
+          />
+          Auto-trim subject
+        </label>
+        <RangeRow
+          id="pa-subject-padding"
+          label="Padding"
+          value={settings.subjectPaddingPx}
+          min={0}
+          max={128}
+          step={1}
+          suffix="px"
+          disabled={!settings.trimSubjectEnabled}
+          onChange={setSubjectPadding}
+        />
         <div style={styles.pillGroup}>
           {SIZE_PRESETS.map((preset) => (
             <button
@@ -561,6 +634,115 @@ export function PixelArtControls({
             <option value="floyd-steinberg">Floyd-Steinberg</option>
           </select>
         </div>
+      </div>
+
+      <div style={styles.group}>
+        <span style={styles.groupTitle}>Pixel Cleanup</span>
+        <label style={styles.checkboxRow}>
+          <input
+            type="checkbox"
+            checked={settings.pixelCleanupEnabled}
+            onChange={togglePixelCleanup}
+          />
+          Pixel Cleanup
+        </label>
+        <RangeRow
+          id="pa-cleanup-strength"
+          label="Strength"
+          value={settings.pixelCleanupStrength}
+          min={0}
+          max={1}
+          step={0.05}
+          suffix="%"
+          displayValue={Math.round(settings.pixelCleanupStrength * 100)}
+          disabled={!settings.pixelCleanupEnabled}
+          onChange={setPixelCleanupStrength}
+        />
+      </div>
+
+      <div style={styles.group}>
+        <span style={styles.groupTitle}>Dark Edge / Outline</span>
+        <label style={styles.checkboxRow}>
+          <input
+            type="checkbox"
+            checked={settings.darkEdgeEnabled}
+            onChange={toggleDarkEdge}
+          />
+          Enable Dark Edge
+        </label>
+        <RangeRow
+          id="pa-dark-edge-strength"
+          label="Strength"
+          value={settings.darkEdgeStrength}
+          min={0}
+          max={1}
+          step={0.05}
+          suffix="%"
+          displayValue={Math.round(settings.darkEdgeStrength * 100)}
+          disabled={!settings.darkEdgeEnabled}
+          onChange={setDarkEdgeStrength}
+        />
+        <div
+          style={{
+            ...styles.row,
+            ...(settings.darkEdgeEnabled ? {} : styles.disabled),
+          }}
+        >
+          <label htmlFor="pa-dark-edge-mode" style={styles.label}>
+            Mode
+          </label>
+          <select
+            id="pa-dark-edge-mode"
+            value={settings.darkEdgeMode}
+            onChange={(event) =>
+              setDarkEdgeMode(event.target.value as PixelArtDarkEdgeMode)
+            }
+            disabled={!settings.darkEdgeEnabled}
+            style={styles.select}
+          >
+            <option value="external">External</option>
+            <option value="internal">Internal</option>
+            <option value="both">Both</option>
+          </select>
+        </div>
+        <div
+          style={{
+            ...styles.row,
+            ...(settings.darkEdgeEnabled ? {} : styles.disabled),
+          }}
+        >
+          <label htmlFor="pa-dark-edge-color-mode" style={styles.label}>
+            Color
+          </label>
+          <select
+            id="pa-dark-edge-color-mode"
+            value={settings.darkEdgeColorMode}
+            onChange={(event) =>
+              setDarkEdgeColorMode(
+                event.target.value as PixelArtDarkEdgeColorMode,
+              )
+            }
+            disabled={!settings.darkEdgeEnabled}
+            style={styles.select}
+          >
+            <option value="adaptive">Adaptive</option>
+            <option value="black">Black</option>
+          </select>
+        </div>
+        <label
+          style={{
+            ...styles.checkboxRow,
+            ...(settings.darkEdgeEnabled ? {} : styles.disabled),
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={settings.darkEdgeRespectPalette}
+            onChange={toggleDarkEdgeRespectPalette}
+            disabled={!settings.darkEdgeEnabled}
+          />
+          Respect Palette
+        </label>
       </div>
     </div>
   );

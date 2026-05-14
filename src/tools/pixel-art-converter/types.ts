@@ -21,6 +21,10 @@ export type PixelArtPalettePresetId =
 
 export type PixelArtDitheringMode = 'none' | 'ordered' | 'floyd-steinberg';
 
+export type PixelArtDarkEdgeMode = 'external' | 'internal' | 'both';
+
+export type PixelArtDarkEdgeColorMode = 'adaptive' | 'black';
+
 export type PixelArtPreviewMode =
   | 'original'
   | 'pixel-art'

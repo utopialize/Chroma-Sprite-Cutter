@@ -1,4 +1,6 @@
 import type {
+  PixelArtDarkEdgeColorMode,
+  PixelArtDarkEdgeMode,
   PixelArtDitheringMode,
   PixelArtPreviewBackground,
   PixelArtPreviewMode,
@@ -24,10 +26,19 @@ export interface PixelArtSettings {
   targetHeight: number;
   lockAspectRatio: boolean;
   previewFitMode: 'match-source';
+  trimSubjectEnabled: boolean;
+  subjectPaddingPx: number;
   paletteMode: PixelArtPaletteMode;
   palettePreset: PixelArtPalettePresetId;
   colorCount: number;
   dithering: PixelArtDitheringMode;
+  pixelCleanupEnabled: boolean;
+  pixelCleanupStrength: number;
+  darkEdgeEnabled: boolean;
+  darkEdgeStrength: number;
+  darkEdgeMode: PixelArtDarkEdgeMode;
+  darkEdgeColorMode: PixelArtDarkEdgeColorMode;
+  darkEdgeRespectPalette: boolean;
   edgeEnhancementEnabled: boolean;
   edgeEnhancementStrength: number;
   edgeEnhancementMode: EdgeEnhancementMode;
@@ -56,10 +67,19 @@ export const DEFAULT_PIXEL_ART_SETTINGS: PixelArtSettings = {
   targetHeight: 64,
   lockAspectRatio: true,
   previewFitMode: 'match-source',
+  trimSubjectEnabled: false,
+  subjectPaddingPx: 0,
   paletteMode: 'auto',
   palettePreset: 'pico-8-16',
   colorCount: 16,
   dithering: 'none',
+  pixelCleanupEnabled: true,
+  pixelCleanupStrength: 0.35,
+  darkEdgeEnabled: false,
+  darkEdgeStrength: 0.25,
+  darkEdgeMode: 'external',
+  darkEdgeColorMode: 'adaptive',
+  darkEdgeRespectPalette: true,
   edgeEnhancementEnabled: DEFAULT_EDGE_ENHANCEMENT.enabled,
   edgeEnhancementStrength: DEFAULT_EDGE_ENHANCEMENT.strength,
   edgeEnhancementMode: DEFAULT_EDGE_ENHANCEMENT.mode,
@@ -89,6 +109,19 @@ export function createPixelArtImage(
     paletteMode: settings.paletteMode,
     palettePreset: settings.palettePreset,
     dithering: settings.dithering,
+    trimSubjectEnabled: settings.trimSubjectEnabled,
+    subjectPaddingPx: clampPadding(settings.subjectPaddingPx),
+    pixelCleanup: {
+      enabled: settings.pixelCleanupEnabled,
+      strength: clamp01(settings.pixelCleanupStrength),
+    },
+    darkEdge: {
+      enabled: settings.darkEdgeEnabled,
+      strength: clamp01(settings.darkEdgeStrength),
+      mode: settings.darkEdgeMode,
+      colorMode: settings.darkEdgeColorMode,
+      respectPalette: settings.darkEdgeRespectPalette,
+    },
     chromaKey: {
       enabled: settings.chromaKeyEnabled,
       color: settings.chromaKeyColor,
@@ -104,6 +137,21 @@ export function createPixelArtImage(
       protectAlphaEdges: settings.protectAlphaEdges,
     },
   });
+}
+
+function clampPadding(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  const rounded = Math.round(value);
+  if (rounded < 0) return 0;
+  if (rounded > 512) return 512;
+  return rounded;
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
 }
 
 export function clampDimension(value: number): number {

@@ -164,16 +164,31 @@ function findNearestPaletteColor(
   let bestDistance = Infinity;
   for (let p = 0; p < palette.length; p++) {
     const color = palette[p];
-    const dr = r - color.r;
-    const dg = g - color.g;
-    const db = b - color.b;
-    const distance = dr * dr + dg * dg + db * db;
+    const distance = perceptualDistance(r, g, b, color);
     if (distance < bestDistance) {
       bestDistance = distance;
       bestIndex = p;
     }
   }
   return palette[bestIndex];
+}
+
+function perceptualDistance(
+  r: number,
+  g: number,
+  b: number,
+  color: RGB,
+): number {
+  const dr = r - color.r;
+  const dg = g - color.g;
+  const db = b - color.b;
+  const meanR = (r + color.r) / 2;
+  // Redmean is cheap and separates luminance-heavy choices better than raw RGB.
+  return (
+    (2 + meanR / 256) * dr * dr +
+    4 * dg * dg +
+    (2 + (255 - meanR) / 256) * db * db
+  );
 }
 
 function copyRgb(
