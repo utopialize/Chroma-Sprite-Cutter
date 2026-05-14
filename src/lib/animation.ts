@@ -3,6 +3,16 @@ export interface AnimationStep {
   direction: 1 | -1;
 }
 
+export function getAnimationFrameCount(
+  startFrame: number,
+  endFrame: number,
+  totalFrames: number,
+): number {
+  if (totalFrames <= 0) return 0;
+  const range = getAnimationFrameRange(totalFrames, startFrame, endFrame);
+  return range.endIndex - range.startIndex + 1;
+}
+
 export function nextAnimationFrame(
   current: AnimationStep,
   frameCount: number,

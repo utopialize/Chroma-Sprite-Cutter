@@ -4,88 +4,36 @@ export interface ChangelogEntry {
   highlights: string[];
 }
 
-export const APP_VERSION = '0.1.9';
+export const APP_VERSION = '0.2.0';
 
 export const REPO_URL = 'https://github.com/utopialize/Chroma-Sprite-Cutter';
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '0.1.9',
-    date: '2026-05-12',
+    version: '0.2.0',
+    date: '2026-05-15',
     highlights: [
-      'Manual frame corrections in the Build step: rename, reorder, duplicate, delete, lock, and X/Y offsets.',
-      'Simple undo and redo stack for manual frame correction actions.',
-      'Manual frame names, offsets, locks, and order now drive PNG, frame, GIF, metadata, and ZIP exports.',
-    ],
-  },
-  {
-    version: '0.1.8',
-    date: '2026-05-12',
-    highlights: [
-      'Export step now lets users choose the output file base name from the UI.',
-      'Metadata presets for Generic, Aseprite-like, Phaser atlas, Godot, and Unity-oriented JSON.',
-      'ZIP package summary shows the generated PNG, metadata, frame PNGs, and conditional GIF before export.',
-    ],
-  },
-  {
-    version: '0.1.7',
-    date: '2026-05-12',
-    highlights: [
-      'ZIP package export containing the final PNG, metadata JSON, individual frame PNGs, and animation GIF.',
-      'Dependency-free ZIP writer for packaging already-compressed game asset files.',
-      'Frame export internals are shared between individual downloads and ZIP packaging.',
-    ],
-  },
-  {
-    version: '0.1.6',
-    date: '2026-05-12',
-    highlights: [
-      'Persistent animation settings in the Build step: name, frame range, FPS, loop, and ping-pong.',
-      'Animation preview, GIF export, metadata, and project presets now use the same animation configuration.',
-      'Diagnostics warn when animation ranges exceed the included frame selection.',
-    ],
-  },
-  {
-    version: '0.1.5',
-    date: '2026-05-12',
-    highlights: [
-      'Animated GIF export with transparency from the rebuilt sprite sheet, with configurable FPS.',
-      'Frame selection grid now renders an actual preview of each source frame instead of a numbered button.',
-      'Self-contained GIF89a encoder with median-cut quantization and LZW compression - no external dependency.',
-    ],
-  },
-  {
-    version: '0.1.4',
-    date: '2026-05-12',
-    highlights: [
-      'Source frame inclusion/exclusion before the sheet is reassembled.',
-      'Sprite sheet diagnostics: invalid grids, frame count mismatches, empty frames, clipping risk, padding warnings.',
-      'README refresh covering the four-step workflow.',
-    ],
-  },
-  {
-    version: '0.1.3',
-    date: '2026-05-12',
-    highlights: [
-      'Animation preview panel with play/pause, FPS slider, prev/next stepping, and ping-pong mode.',
-      'Animation helpers shared between preview and export.',
-    ],
-  },
-  {
-    version: '0.1.2',
-    date: '2026-05-12',
-    highlights: [
-      'Alpha mask view mode in the Clean Background step for debugging edges.',
-      'Built-in sprite sheet templates: 5 x 2 / 128, 8 x 1 / 64, 4 x 4 / 256, and RPG walk.',
+      'Added the Pixel Art Converter workflow with PNG import, chroma key background removal, target resolution controls, edge enhancement, palette reduction, and game-ready PNG export.',
+      'Pixel Art Converter previews now support original, pixel art, side-by-side, and split view modes with checkerboard, black, white, gray, green chroma, and custom backgrounds.',
+      'Pixel art previews now match the source image display size automatically, keeping preview display independent from target resolution and export scale.',
+      'Added eyedropper picking for Pixel Art Converter chroma key colors directly from the original source image.',
+      'Palette handling now ignores transparent pixels, supports auto extraction and retro presets including Game Boy, PICO-8, NES-like, and Grayscale palettes.',
+      'Added optional Pixel Art Converter dithering modes: none, ordered, and Floyd-Steinberg.',
+      'Export now saves the generated pixel art PNG from the final pipeline canvas with nearest-neighbor scaling, alpha preserved, and source-based filenames.',
     ],
   },
   {
     version: '0.1.1',
     date: '2026-05-12',
     highlights: [
-      'Sprite Sheet Builder validation and diagnostics surfaced in the workspace.',
-      'Individual frame export and JSON metadata export.',
-      'Project preset management combining chroma key and sheet settings.',
+      'Build step now has Simple and Advanced modes so the common source-grid workflow stays focused by default.',
+      'Advanced mode contains extraction mode, frame inclusion, manual corrections, source spacing, advanced output options, and animation clips.',
+      'Manual frame corrections now open in an editor drawer so the Frames tab stays focused on selection and preview.',
+      'Manual corrections support multi-selection for batch offsets, locks, deletion, duplication, and per-frame auto-centering.',
+      'Builder auto-centering tools recenter detected content inside each unlocked frame on X, Y, or both axes.',
+      'Multiple named animation clips, animation preview overlays, transparent GIF export, and ZIP package export.',
+      'Export step supports output base names, metadata presets, individual frames, and visible ZIP content summaries.',
+      'Changelog policy changed to keep one application version per work day instead of incrementing for every small development batch.',
     ],
   },
   {

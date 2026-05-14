@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import {
+  buildPlaybackSequence,
   nextAnimationFrame,
   previousAnimationFrame,
   selectAnimationRange,
 } from '../lib/animation';
+import { getActiveAnimation } from '../lib/animationClips';
 import { applyChromaKey } from '../lib/chromaKey';
 import { buildSpriteSheet } from '../lib/spriteSheet';
 import type { ChromaKeySettings, LoadedImage } from '../types/image';
@@ -55,6 +57,11 @@ const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: '1fr 1fr 1fr',
     gap: spacing.md,
   },
+  toggleGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: spacing.sm,
+  },
   button: {
     padding: '8px 10px',
     border: `1px solid ${colors.borderInput}`,
@@ -77,6 +84,19 @@ const styles: Record<string, CSSProperties> = {
     color: colors.textSecondary,
     fontSize: fontSize.xs,
   },
+  toggleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    color: colors.textSecondary,
+    fontSize: fontSize.xs,
+  },
+  checkbox: {
+    width: 16,
+    height: 16,
+    accentColor: colors.accentHi,
+  },
   empty: {
     color: colors.textDim,
     fontSize: fontSize.xs,
@@ -93,6 +113,10 @@ export function AnimationPreviewPanel({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [playing, setPlaying] = useState(false);
   const [frame, setFrame] = useState({ index: 0, direction: 1 as 1 | -1 });
+  const [showOnionSkin, setShowOnionSkin] = useState(true);
+  const [showGroundLine, setShowGroundLine] = useState(true);
+  const [showPivot, setShowPivot] = useState(true);
+  const activeAnimation = getActiveAnimation(spriteSheetSettings);
 
   const build = useMemo(() => {
     if (!image || !spriteSheetSettings.enabled) return null;
@@ -105,37 +129,58 @@ export function AnimationPreviewPanel({
 
   const frameCount = build?.frames.length ?? 0;
   const disabled = !build || frameCount === 0;
+  const playbackFrames = useMemo(
+    () =>
+      build
+        ? buildPlaybackSequence(build.frames, activeAnimation.pingPong)
+        : [],
+    [activeAnimation.pingPong, build],
+  );
 
   useEffect(() => {
     setFrame({ index: 0, direction: 1 });
-  }, [build]);
+  }, [activeAnimation.id, build]);
 
   useEffect(() => {
     if (!playing || disabled) return;
     const interval = window.setInterval(() => {
-      setFrame((current) =>
-        nextAnimationFrame(
-          current,
-          frameCount,
-          spriteSheetSettings.animationPingPong,
-        ),
-      );
-    }, 1000 / spriteSheetSettings.animationFps);
+      setFrame((current) => {
+        if (!activeAnimation.loop && current.index >= playbackFrames.length - 1) {
+          window.clearInterval(interval);
+          setPlaying(false);
+          return current;
+        }
+        return nextAnimationFrame(current, playbackFrames.length, false);
+      });
+    }, 1000 / activeAnimation.fps);
     return () => window.clearInterval(interval);
   }, [
+    activeAnimation.fps,
+    activeAnimation.loop,
     playing,
     disabled,
-    frameCount,
-    spriteSheetSettings.animationFps,
-    spriteSheetSettings.animationPingPong,
+    playbackFrames.length,
   ]);
 
   useEffect(() => {
     if (!build) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    drawFrame(canvas, build, frame.index);
-  }, [build, frame.index]);
+    drawFrame(canvas, build, playbackFrames, frame.index, {
+      anchor: spriteSheetSettings.anchor,
+      showGroundLine,
+      showOnionSkin,
+      showPivot,
+    });
+  }, [
+    build,
+    frame.index,
+    playbackFrames,
+    showGroundLine,
+    showOnionSkin,
+    showPivot,
+    spriteSheetSettings.anchor,
+  ]);
 
   const buttonStyle: CSSProperties = {
     ...styles.button,
@@ -158,7 +203,9 @@ export function AnimationPreviewPanel({
           disabled={disabled}
           style={buttonStyle}
           onClick={() =>
-            setFrame((current) => previousAnimationFrame(current, frameCount))
+            setFrame((current) =>
+              previousAnimationFrame(current, playbackFrames.length),
+            )
           }
         >
           Prev
@@ -177,32 +224,61 @@ export function AnimationPreviewPanel({
           style={buttonStyle}
           onClick={() =>
             setFrame((current) =>
-              nextAnimationFrame(current, frameCount, false),
+              nextAnimationFrame(current, playbackFrames.length, false),
             )
           }
         >
           Next
         </button>
       </div>
+      <div style={styles.toggleGrid}>
+        <label style={styles.toggleRow}>
+          <span>Onion skin</span>
+          <input
+            type="checkbox"
+            checked={showOnionSkin}
+            onChange={(event) => setShowOnionSkin(event.target.checked)}
+            style={styles.checkbox}
+          />
+        </label>
+        <label style={styles.toggleRow}>
+          <span>Ground line</span>
+          <input
+            type="checkbox"
+            checked={showGroundLine}
+            onChange={(event) => setShowGroundLine(event.target.checked)}
+            style={styles.checkbox}
+          />
+        </label>
+        <label style={styles.toggleRow}>
+          <span>Pivot</span>
+          <input
+            type="checkbox"
+            checked={showPivot}
+            onChange={(event) => setShowPivot(event.target.checked)}
+            style={styles.checkbox}
+          />
+        </label>
+      </div>
       <label style={styles.row}>
         <span>Animation</span>
-        <span>{spriteSheetSettings.animationName}</span>
+        <span>{activeAnimation.name}</span>
       </label>
       <label style={styles.row}>
         <span>FPS</span>
-        <span>{spriteSheetSettings.animationFps}</span>
+        <span>{activeAnimation.fps}</span>
       </label>
       <label style={styles.row}>
         <span>Playback</span>
         <span>
-          {spriteSheetSettings.animationLoop ? 'Loop' : 'Once'}
-          {spriteSheetSettings.animationPingPong ? ' / Ping-pong' : ''}
+          {activeAnimation.loop ? 'Loop' : 'Once'}
+          {activeAnimation.pingPong ? ' / Ping-pong' : ''}
         </span>
       </label>
       <div style={styles.row}>
         <span>Frame</span>
         <span>
-          {disabled ? '-' : `${frame.index + 1} / ${frameCount}`}
+          {disabled ? '-' : `${Math.min(frame.index + 1, playbackFrames.length)} / ${playbackFrames.length}`}
         </span>
       </div>
     </div>
@@ -218,6 +294,7 @@ function buildAnimationSheet(
   frames: SpriteSheetBuildResult['frames'];
   sheetCanvas: HTMLCanvasElement;
 } {
+  const activeAnimation = getActiveAnimation(spriteSheetSettings);
   const sourceCanvas = document.createElement('canvas');
   sourceCanvas.width = image.width;
   sourceCanvas.height = image.height;
@@ -239,8 +316,8 @@ function buildAnimationSheet(
     result,
     frames: selectAnimationRange(
       result.frames.filter((frame) => frame.sourceIndex !== null),
-      spriteSheetSettings.animationStartFrame,
-      spriteSheetSettings.animationEndFrame,
+      activeAnimation.startFrame,
+      activeAnimation.endFrame,
     ),
     sheetCanvas,
   };
@@ -253,25 +330,78 @@ function drawFrame(
     frames: SpriteSheetBuildResult['frames'];
     sheetCanvas: HTMLCanvasElement;
   },
+  playbackFrames: SpriteSheetBuildResult['frames'],
   index: number,
+  options: {
+    anchor: SpriteSheetSettings['anchor'];
+    showGroundLine: boolean;
+    showOnionSkin: boolean;
+    showPivot: boolean;
+  },
 ): void {
-  const frame = build.frames[index];
+  const frame = playbackFrames[index];
   if (!frame) return;
   canvas.width = frame.destinationCell.width;
   canvas.height = frame.destinationCell.height;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   fillChecker(ctx, canvas.width, canvas.height);
+  if (options.showOnionSkin) {
+    const previous = playbackFrames[index - 1];
+    const next = playbackFrames[index + 1];
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    if (previous) {
+      drawSheetFrame(ctx, build.sheetCanvas, previous, canvas.width, canvas.height);
+    }
+    if (next) {
+      drawSheetFrame(ctx, build.sheetCanvas, next, canvas.width, canvas.height);
+    }
+    ctx.restore();
+  }
+  drawSheetFrame(ctx, build.sheetCanvas, frame, canvas.width, canvas.height);
+  const pivot = getPivotPoint(canvas.width, canvas.height, options.anchor);
+  if (options.showGroundLine) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 174, 0, 0.9)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, pivot.y + 0.5);
+    ctx.lineTo(canvas.width, pivot.y + 0.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (options.showPivot) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(91,157,255,0.95)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pivot.x - 4, pivot.y + 0.5);
+    ctx.lineTo(pivot.x + 4, pivot.y + 0.5);
+    ctx.moveTo(pivot.x + 0.5, pivot.y - 4);
+    ctx.lineTo(pivot.x + 0.5, pivot.y + 4);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawSheetFrame(
+  ctx: CanvasRenderingContext2D,
+  sheetCanvas: HTMLCanvasElement,
+  frame: SpriteSheetBuildResult['frames'][number],
+  width: number,
+  height: number,
+): void {
   ctx.drawImage(
-    build.sheetCanvas,
+    sheetCanvas,
     frame.destinationCell.x,
     frame.destinationCell.y,
     frame.destinationCell.width,
     frame.destinationCell.height,
     0,
     0,
-    canvas.width,
-    canvas.height,
+    width,
+    height,
   );
 }
 
@@ -295,4 +425,18 @@ function fillChecker(
   if (!pattern) return;
   ctx.fillStyle = pattern;
   ctx.fillRect(0, 0, width, height);
+}
+
+function getPivotPoint(
+  width: number,
+  height: number,
+  anchor: SpriteSheetSettings['anchor'],
+): { x: number; y: number } {
+  if (anchor === 'top-center') {
+    return { x: Math.round(width / 2), y: 0 };
+  }
+  if (anchor === 'center') {
+    return { x: Math.round(width / 2), y: Math.round(height / 2) };
+  }
+  return { x: Math.round(width / 2), y: height - 1 };
 }

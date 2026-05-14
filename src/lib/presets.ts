@@ -1,5 +1,6 @@
 import type { ChromaKeySettings, RGB } from '../types/image';
 import type { SpriteSheetSettings } from '../types/spriteSheet';
+import { ensureAnimationSettings } from './animationClips';
 
 const PRESET_VERSION = 1;
 const PROJECT_PRESET_VERSION = 2;
@@ -152,7 +153,11 @@ function isSpriteSheetSettings(value: unknown): value is SpriteSheetSettings {
     (obj.animationLoop === undefined ||
       typeof obj.animationLoop === 'boolean') &&
     (obj.animationPingPong === undefined ||
-      typeof obj.animationPingPong === 'boolean')
+      typeof obj.animationPingPong === 'boolean') &&
+    (obj.animations === undefined || isAnimationClipArray(obj.animations)) &&
+    (obj.activeAnimationId === undefined ||
+      obj.activeAnimationId === null ||
+      typeof obj.activeAnimationId === 'string')
   );
 }
 
@@ -181,10 +186,29 @@ function isManualFrameArray(value: unknown): boolean {
   );
 }
 
+function isAnimationClipArray(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every((item) => {
+      if (!item || typeof item !== 'object') return false;
+      const obj = item as Record<string, unknown>;
+      return (
+        typeof obj.id === 'string' &&
+        typeof obj.name === 'string' &&
+        isFiniteNumber(obj.startFrame) &&
+        isFiniteNumber(obj.endFrame) &&
+        isFiniteNumber(obj.fps) &&
+        typeof obj.loop === 'boolean' &&
+        typeof obj.pingPong === 'boolean'
+      );
+    })
+  );
+}
+
 function normalizeSpriteSheetSettings(
   settings: SpriteSheetSettings,
 ): SpriteSheetSettings {
-  return {
+  return ensureAnimationSettings({
     ...settings,
     excludedSourceFrameIndices: settings.excludedSourceFrameIndices ?? [],
     animationName: settings.animationName ?? 'default',
@@ -195,8 +219,28 @@ function normalizeSpriteSheetSettings(
     animationFps: settings.animationFps ?? 8,
     animationLoop: settings.animationLoop ?? true,
     animationPingPong: settings.animationPingPong ?? false,
+    animations:
+      settings.animations && settings.animations.length > 0
+        ? settings.animations
+        : [
+            {
+              id: 'legacy-default',
+              name: settings.animationName ?? 'default',
+              startFrame: settings.animationStartFrame ?? 1,
+              endFrame:
+                settings.animationEndFrame ??
+                settings.outputColumns * settings.outputRows,
+              fps: settings.animationFps ?? 8,
+              loop: settings.animationLoop ?? true,
+              pingPong: settings.animationPingPong ?? false,
+            },
+          ],
+    activeAnimationId:
+      settings.activeAnimationId ??
+      settings.animations?.[0]?.id ??
+      'legacy-default',
     manualFrames: settings.manualFrames ?? [],
-  };
+  });
 }
 
 export function downloadPreset(

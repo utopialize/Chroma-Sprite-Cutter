@@ -33,6 +33,12 @@ The app is organized as a guided 4-step workflow.
 ### 3. Build Sprite Sheet
 
 - Enable the Sprite Sheet Builder.
+- Navigate the builder with internal tabs: Grid, Frames, Animation, and
+  Diagnostics.
+- Use Simple mode for the common workflow: template, source grid size, output
+  grid size, frame size, padding, anchor, and preview generation.
+- Switch Grid to Advanced mode for extraction details, source spacing, and
+  alpha threshold.
 - Extract frames from a source grid.
 - Configure source columns, rows, margins, gaps, and alpha threshold.
 - Configure output columns, rows, frame width, frame height, padding, fit mode,
@@ -43,12 +49,24 @@ The app is organized as a guided 4-step workflow.
   frames removed and the remaining frames compacted in order.
 - Apply manual corrections to output frames: rename, reorder, duplicate, delete,
   lock, and adjust X/Y offsets.
+- Open manual corrections from the Frames tab in an editor drawer so the main
+  panel stays focused on selection and preview.
+- Auto-center detected content inside each unlocked frame on X, Y, or both axes
+  from its alpha centroid.
 - Undo and redo manual frame correction actions.
-- Configure a named animation range with FPS, loop, and ping-pong playback.
+- Create and edit multiple named animation clips with FPS, loop, and ping-pong
+  playback.
 - Preview the result as Source overlay, Extracted frames, or Final sheet.
+- Inspect the animation with onion skin, visible pivot, and visible ground line.
 - Display source grid, detected bounds, output grid, and frame numbering.
 - Show basic warnings for invalid grids, frame count mismatch, empty frames,
   clipping risk, and padding issues.
+
+## Versioning
+
+During active development, the app version is incremented at most once per work
+day. The changelog consolidates all same-day development batches under that
+day's version instead of creating one version per small change.
 
 ### 4. Export
 
@@ -76,6 +94,11 @@ The app is organized as a guided 4-step workflow.
 - Source frame inclusion/exclusion before sheet reconstruction.
 - Manual output frame corrections with names, order, duplicates, locks, and
   per-frame X/Y offsets.
+- Batch auto-centering inside selected frames on horizontal, vertical, or both
+  axes.
+- Multiple named animation clips with an active clip used by preview and GIF
+  export.
+- Animation preview overlays for onion skin, ground line, and pivot.
 - Fit modes: contain, cover, original size.
 - Anchors: center, bottom-center, top-center.
 - PNG export with strict output dimensions.
@@ -98,7 +121,7 @@ Short-term priorities:
 
 - Improve overlays and warnings.
 - Add richer export presets and validate them against real engine import flows.
-- Add crop/resize handles and multiple animation ranges.
+- Add crop/resize handles and animation clip management beyond add/edit/delete.
 - Improve project presets and templates.
 
 Medium-term priorities:
@@ -247,6 +270,7 @@ src/
     ProjectPresetPanel.tsx
     SpriteSheetPanel.tsx
   lib/
+    animationClips.ts
     chromaKey.ts
     chromaKey.worker.ts
     colorUtils.ts
@@ -271,7 +295,7 @@ src/
 
 - Auto-detection of irregular sprites is not implemented yet.
 - Manual crop, resize handles, and source replacement are not implemented yet.
-- Multiple named animation clips are not implemented yet.
+- Onion skin colors and per-clip preview backgrounds are not configurable yet.
 - Engine metadata presets exist, but exact importer/project-file generation is
   not implemented yet.
 

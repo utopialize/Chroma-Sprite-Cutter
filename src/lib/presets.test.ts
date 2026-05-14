@@ -88,6 +88,18 @@ describe('serializeProjectPreset / parseProjectPreset', () => {
       animationStartFrame: 2,
       animationEndFrame: 5,
       animationFps: 12,
+      animations: [
+        {
+          id: 'walk',
+          name: 'walk',
+          startFrame: 2,
+          endFrame: 5,
+          fps: 12,
+          loop: true,
+          pingPong: true,
+        },
+      ],
+      activeAnimationId: 'walk',
       animationPingPong: true,
     });
     const parsed = parseProjectPreset(json);
@@ -96,6 +108,37 @@ describe('serializeProjectPreset / parseProjectPreset', () => {
     expect(parsed.spriteSheet.animationEndFrame).toBe(5);
     expect(parsed.spriteSheet.animationFps).toBe(12);
     expect(parsed.spriteSheet.animationPingPong).toBe(true);
+  });
+
+  it('round-trips multiple named animations', () => {
+    const json = serializeProjectPreset(SETTINGS, {
+      ...DEFAULT_SPRITESHEET_SETTINGS,
+      animations: [
+        {
+          id: 'idle',
+          name: 'idle',
+          startFrame: 1,
+          endFrame: 2,
+          fps: 8,
+          loop: true,
+          pingPong: false,
+        },
+        {
+          id: 'attack',
+          name: 'attack',
+          startFrame: 3,
+          endFrame: 5,
+          fps: 12,
+          loop: false,
+          pingPong: true,
+        },
+      ],
+      activeAnimationId: 'attack',
+    });
+    const parsed = parseProjectPreset(json);
+    expect(parsed.spriteSheet.animations).toHaveLength(2);
+    expect(parsed.spriteSheet.activeAnimationId).toBe('attack');
+    expect(parsed.spriteSheet.animationName).toBe('attack');
   });
 
   it('round-trips manual frame corrections', () => {

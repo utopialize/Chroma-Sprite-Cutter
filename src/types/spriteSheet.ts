@@ -35,7 +35,19 @@ export interface SpriteSheetSettings {
   animationFps: number;
   animationLoop: boolean;
   animationPingPong: boolean;
+  animations: SpriteSheetAnimationClip[];
+  activeAnimationId: string | null;
   manualFrames: SpriteSheetManualFrame[];
+}
+
+export interface SpriteSheetAnimationClip {
+  id: string;
+  name: string;
+  startFrame: number;
+  endFrame: number;
+  fps: number;
+  loop: boolean;
+  pingPong: boolean;
 }
 
 export interface SpriteSheetManualFrame {

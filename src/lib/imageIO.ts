@@ -1,6 +1,7 @@
 import { applyChromaKey } from './chromaKey';
 import { GifEncoder } from './gifEncoder';
 import { buildPlaybackSequence, selectAnimationRange } from './animation';
+import { getActiveAnimation, getAnimationClips } from './animationClips';
 import { getEffectiveManualFrames } from './manualFrames';
 import { buildSpriteSheet } from './spriteSheet';
 import { createZip } from './zip';
@@ -113,6 +114,7 @@ export async function exportProjectZip(
   });
 
   if (result) {
+    const activeAnimation = getActiveAnimation(spriteSheetSettings);
     const framePngs = await renderFramePngs(result, spriteSheetSettings);
     for (const frame of framePngs) {
       entries.push({
@@ -126,7 +128,7 @@ export async function exportProjectZip(
       entries.push({
         path: buildAnimationGifExportName(
           image.name,
-          spriteSheetSettings.animationFps,
+          activeAnimation.fps,
           options,
         ),
         data: gifBytes,
@@ -161,9 +163,10 @@ export async function exportAnimationGif(
   if (!result) throw new Error('Failed to build sprite sheet');
 
   const bytes = buildAnimationGifBytes(result, spriteSheetSettings, options);
+  const activeAnimation = getActiveAnimation(spriteSheetSettings);
   const fps = Math.max(
     1,
-    Math.min(60, Math.round(options.fps ?? spriteSheetSettings.animationFps)),
+    Math.min(60, Math.round(options.fps ?? activeAnimation.fps)),
   );
   const blob = new Blob([bytes as BlobPart], { type: 'image/gif' });
   triggerDownload(
@@ -177,13 +180,14 @@ function buildAnimationGifBytes(
   spriteSheetSettings: SpriteSheetSettings,
   options: AnimationGifOptions,
 ): Uint8Array {
+  const activeAnimation = getActiveAnimation(spriteSheetSettings);
   const animationFrames = buildPlaybackSequence(
     selectAnimationRange(
       result.frames.filter((frame) => frame.sourceIndex !== null),
-      spriteSheetSettings.animationStartFrame,
-      spriteSheetSettings.animationEndFrame,
+      activeAnimation.startFrame,
+      activeAnimation.endFrame,
     ),
-    spriteSheetSettings.animationPingPong,
+    activeAnimation.pingPong,
   );
   if (animationFrames.length === 0) {
     throw new Error('No frames available for animation');
@@ -208,11 +212,11 @@ function buildAnimationGifBytes(
 
   const fps = Math.max(
     1,
-    Math.min(60, Math.round(options.fps ?? spriteSheetSettings.animationFps)),
+    Math.min(60, Math.round(options.fps ?? activeAnimation.fps)),
   );
   const delayCs = Math.max(2, Math.round(100 / fps));
   const alphaThreshold = options.alphaThreshold ?? 128;
-  const loop = options.loop ?? (spriteSheetSettings.animationLoop ? 0 : 1);
+  const loop = options.loop ?? (activeAnimation.loop ? 0 : 1);
 
   const encoder = new GifEncoder(frameWidth, frameHeight, loop);
   for (const frame of animationFrames) {
@@ -239,14 +243,15 @@ export function canBuildAnimationGif(
   result: SpriteSheetBuildResult,
   spriteSheetSettings: SpriteSheetSettings,
 ): boolean {
+  const activeAnimation = getActiveAnimation(spriteSheetSettings);
   return (
     buildPlaybackSequence(
       selectAnimationRange(
         result.frames.filter((frame) => frame.sourceIndex !== null),
-        spriteSheetSettings.animationStartFrame,
-        spriteSheetSettings.animationEndFrame,
+        activeAnimation.startFrame,
+        activeAnimation.endFrame,
       ),
-      spriteSheetSettings.animationPingPong,
+      activeAnimation.pingPong,
     ).length > 0
   );
 }
@@ -311,6 +316,7 @@ export function buildZipContentSummary(
 
   if (settings.enabled) {
     const included = getEffectiveManualFrames(settings).length;
+    const activeAnimation = getActiveAnimation(settings);
     entries.push({
       name: 'frames/frame_###.png',
       detail: `Up to ${included} individual frame PNG${included === 1 ? '' : 's'}`,
@@ -318,7 +324,7 @@ export function buildZipContentSummary(
     entries.push({
       name: buildAnimationGifExportName(
         sourceName,
-        settings.animationFps,
+        activeAnimation.fps,
         options,
       ),
       detail: 'Included when the selected animation range contains frames',
@@ -430,6 +436,7 @@ function buildGenericSpriteSheetMetadata(
   result: SpriteSheetBuildResult,
   options: ExportOptionsInput,
 ) {
+  const activeAnimation = getActiveAnimation(settings);
   return {
     version: 1,
     type: 'spritesheet',
@@ -449,21 +456,10 @@ function buildGenericSpriteSheetMetadata(
     },
     anchor: settings.anchor,
     fitMode: settings.fitMode,
-    animations: [
-      {
-        name: settings.animationName,
-        startFrame: settings.animationStartFrame,
-        endFrame: settings.animationEndFrame,
-        fps: settings.animationFps,
-        loop: settings.animationLoop,
-        pingPong: settings.animationPingPong,
-        frames: selectAnimationRange(
-          result.frames.filter((frame) => frame.sourceIndex !== null),
-          settings.animationStartFrame,
-          settings.animationEndFrame,
-        ).map((frame) => frame.index),
-      },
-    ],
+    activeAnimationId: activeAnimation.id,
+    animations: getAnimationClips(settings).map((clip) =>
+      buildAnimationMetadata(clip, result),
+    ),
     frames: result.frames.map((frame) => ({
       index: frame.index,
       sourceIndex: frame.sourceIndex,
@@ -486,6 +482,7 @@ function buildAsepriteMetadata(
   result: SpriteSheetBuildResult,
   options: ExportOptionsInput,
 ) {
+  const activeAnimation = getActiveAnimation(settings);
   const frames = Object.fromEntries(
     result.frames.map((frame) => {
       const name = `${frame.name}.png`;
@@ -497,15 +494,10 @@ function buildAsepriteMetadata(
           trimmed: frame.drawRect !== null,
           spriteSourceSize: toAsepriteRect(frame.drawRect ?? emptyRect()),
           sourceSize: { w: settings.frameWidth, h: settings.frameHeight },
-          duration: Math.round(1000 / settings.animationFps),
+          duration: Math.round(1000 / activeAnimation.fps),
         },
       ];
     }),
-  );
-  const selected = selectAnimationRange(
-    result.frames.filter((frame) => frame.sourceIndex !== null),
-    settings.animationStartFrame,
-    settings.animationEndFrame,
   );
   return {
     frames,
@@ -516,14 +508,19 @@ function buildAsepriteMetadata(
       format: 'RGBA8888',
       size: { w: result.width, h: result.height },
       scale: '1',
-      frameTags: [
-        {
-          name: settings.animationName,
-          from: selected[0]?.index ?? 0,
-          to: selected[selected.length - 1]?.index ?? 0,
-          direction: settings.animationPingPong ? 'pingpong' : 'forward',
-        },
-      ],
+      frameTags: getAnimationClips(settings).map((clip) => {
+        const clipFrames = selectAnimationRange(
+          result.frames.filter((frame) => frame.sourceIndex !== null),
+          clip.startFrame,
+          clip.endFrame,
+        );
+        return {
+          name: clip.name,
+          from: clipFrames[0]?.index ?? 0,
+          to: clipFrames[clipFrames.length - 1]?.index ?? 0,
+          direction: clip.pingPong ? 'pingpong' : 'forward',
+        };
+      }),
     },
   };
 }
@@ -557,7 +554,10 @@ function buildPhaserMetadata(
         })),
       },
     ],
-    animations: [buildAnimationMetadata(settings, result)],
+    activeAnimationId: getActiveAnimation(settings).id,
+    animations: getAnimationClips(settings).map((clip) =>
+      buildAnimationMetadata(clip, result),
+    ),
   };
 }
 
@@ -581,7 +581,10 @@ function buildGodotMetadata(
       region: frame.destinationCell,
       empty: frame.empty,
     })),
-    animations: [buildAnimationMetadata(settings, result)],
+    activeAnimationId: getActiveAnimation(settings).id,
+    animations: getAnimationClips(settings).map((clip) =>
+      buildAnimationMetadata(clip, result),
+    ),
   };
 }
 
@@ -604,25 +607,37 @@ function buildUnityMetadata(
       alignment: 'Custom',
       border: { left: 0, right: 0, top: 0, bottom: 0 },
     })),
-    animations: [buildAnimationMetadata(settings, result)],
+    activeAnimationId: getActiveAnimation(settings).id,
+    animations: getAnimationClips(settings).map((clip) =>
+      buildAnimationMetadata(clip, result),
+    ),
   };
 }
 
 function buildAnimationMetadata(
-  settings: SpriteSheetSettings,
+  clip: {
+    id: string;
+    name: string;
+    startFrame: number;
+    endFrame: number;
+    fps: number;
+    loop: boolean;
+    pingPong: boolean;
+  },
   result: SpriteSheetBuildResult,
 ) {
   return {
-    name: settings.animationName,
-    startFrame: settings.animationStartFrame,
-    endFrame: settings.animationEndFrame,
-    fps: settings.animationFps,
-    loop: settings.animationLoop,
-    pingPong: settings.animationPingPong,
+    id: clip.id,
+    name: clip.name,
+    startFrame: clip.startFrame,
+    endFrame: clip.endFrame,
+    fps: clip.fps,
+    loop: clip.loop,
+    pingPong: clip.pingPong,
     frames: selectAnimationRange(
       result.frames.filter((frame) => frame.sourceIndex !== null),
-      settings.animationStartFrame,
-      settings.animationEndFrame,
+      clip.startFrame,
+      clip.endFrame,
     ).map((frame) => frame.index),
   };
 }
